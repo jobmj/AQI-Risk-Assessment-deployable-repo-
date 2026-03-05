@@ -1,6 +1,5 @@
 package com.aqi.services;
 
-<<<<<<< HEAD
 import java.io.*;
 import java.net.*;
 
@@ -11,7 +10,6 @@ public class ApiService {
     /**
      * POST /api/health-profile
      * Saves or updates the user's health profile.
-     * Called when the user clicks "Save Profile".
      */
     public static void saveProfile(String jsonData) {
         try {
@@ -25,33 +23,10 @@ public class ApiService {
 
             try (OutputStream os = conn.getOutputStream()) {
                 os.write(jsonData.getBytes("UTF-8"));
-=======
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-
-public class ApiService {
-
-    private static final String BASE_URL = "http://localhost:8000";
-
-    public static void updateProfile(String jsonData) {
-
-        try {
-            URL url = new URL(BASE_URL + "/update-profile");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setDoOutput(true);
-
-            try (OutputStream os = conn.getOutputStream()) {
-                os.write(jsonData.getBytes());
->>>>>>> origin/main
                 os.flush();
             }
 
             int responseCode = conn.getResponseCode();
-<<<<<<< HEAD
             System.out.println("Save profile response: " + responseCode);
             conn.disconnect();
 
@@ -64,7 +39,7 @@ public class ApiService {
     /**
      * GET /api/health-profile/{userId}
      * Loads an existing profile to pre-fill the form.
-     * Returns the JSON string if found, or null if no profile exists yet.
+     * Returns JSON string if found, null if no profile exists yet.
      */
     public static String loadProfile(String userId) {
         try {
@@ -76,13 +51,13 @@ public class ApiService {
 
             int responseCode = conn.getResponseCode();
 
-            // 204 = No profile saved yet — return null so form stays blank
+            // 204 = No profile saved yet
             if (responseCode == 204) {
                 conn.disconnect();
                 return null;
             }
 
-            // 200 = Profile found — read and return JSON
+            // 200 = Profile found
             if (responseCode == 200) {
                 BufferedReader reader = new BufferedReader(
                         new InputStreamReader(conn.getInputStream(), "UTF-8")
@@ -106,14 +81,4 @@ public class ApiService {
             return null;
         }
     }
-=======
-            System.out.println("Response Code: " + responseCode);
-
-            conn.disconnect();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
->>>>>>> origin/main
 }
