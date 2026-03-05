@@ -120,16 +120,12 @@ public class DashboardController {
 
 
     @FXML
+
     private void handleOpenMap() {
         try {
-            FXMLLoader loader = new FXMLLoader(
-                    getClass().getResource("/com/example/aqidashboard/map-view.fxml"));
-            Stage stage = (Stage) aqiLabel.getScene().getWindow();
-            double w = stage.getScene().getWidth();
-            double h = stage.getScene().getHeight();
-            Scene scene = new Scene(loader.load(), w, h);
-            stage.setScene(scene);
-            stage.setTitle("AQI Map");
+            java.awt.Desktop.getDesktop().browse(
+                    new java.net.URI("http://localhost:8080/map")
+            );
         } catch (Exception e) {
             e.printStackTrace();
         }
