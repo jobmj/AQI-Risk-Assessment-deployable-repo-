@@ -36,7 +36,7 @@
     -fx-effect: dropshadow(gaussian, rgba(37,99,235,0.25), 12, 0.3, 0, 0);
 }
 
-/* ── NEW: DatePicker — matches text-field style ── */
+/* ── DatePicker ── */
 .date-picker {
     -fx-background-color: #f8fafc;
     -fx-background-radius: 10;
@@ -56,14 +56,21 @@
     -fx-padding: 10;
 }
 
-/* ── NEW: Age display label next to DOB picker ── */
+/* ── Age label ── */
 .age-label {
     -fx-font-size: 13px;
     -fx-text-fill: #2563eb;
     -fx-font-weight: bold;
 }
 
-/* ── NEW: Checkboxes ── */
+/* ── Last updated label ── */
+.updated-label {
+    -fx-font-size: 12px;
+    -fx-text-fill: #94a3b8;
+    -fx-font-style: italic;
+}
+
+/* ── Checkboxes ── */
 .custom-check {
     -fx-font-size: 14px;
     -fx-text-fill: #1e293b;
@@ -101,6 +108,19 @@
 
 .primary-btn:hover {
     -fx-background-color: #1d4ed8;
+}
+
+/* ── Update button ── */
+.update-btn {
+    -fx-background-color: #0891b2;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 12;
+    -fx-padding: 10 24 10 24;
+}
+
+.update-btn:hover {
+    -fx-background-color: #0e7490;
 }
 
 .secondary-btn {
