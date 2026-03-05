@@ -83,13 +83,20 @@ public class UpdateHealthProfileController {
             }
         });
 
-        // Live age display
+        // Hide age label until DOB is entered
+        ageDisplayLabel.setVisible(false);
+        ageDisplayLabel.setManaged(false);
+
+        // Show age live once DOB is picked
         dobPicker.valueProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
                 int age = Period.between(newVal, LocalDate.now()).getYears();
                 ageDisplayLabel.setText("Age: " + age + " yrs");
+                ageDisplayLabel.setVisible(true);
+                ageDisplayLabel.setManaged(true);
             } else {
-                ageDisplayLabel.setText("");
+                ageDisplayLabel.setVisible(false);
+                ageDisplayLabel.setManaged(false);
             }
         });
 
