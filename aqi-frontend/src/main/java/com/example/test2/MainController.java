@@ -16,6 +16,8 @@ import javafx.scene.text.TextAlignment;
 import javafx.geometry.Insets;
 import javafx.geometry.Side;
 import javafx.scene.effect.DropShadow;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -27,12 +29,11 @@ public class MainController {
     /* =======================
        UI CONTROLS
        ======================= */
-    @FXML private HBox rootBox;
-    @FXML private VBox sidebar;
+    @FXML private VBox rootBox;
+    @FXML private HBox topInputArea;
     @FXML private HBox mainArea;
-    @FXML private Label headerLabel;
 
-    // Updated to TextField for typing input
+    @FXML private Label headerLabel;
     @FXML private TextField cityField;
     @FXML private Button predictButton;
 
@@ -43,10 +44,14 @@ public class MainController {
     @FXML private CheckBox symptomIrritation;
     @FXML private CheckBox symptomFatigue;
 
+    @FXML private VBox aqiCard;
     @FXML private Label cityLabel;
     @FXML private StackPane aqiCircle;
     @FXML private Label aqiLabel;
+
+    @FXML private ImageView aqiImage; // NEW: The Image holder
     @FXML private Label aqiStatus;
+
     @FXML private Label pm25Label;
     @FXML private Label pm10Label;
 
@@ -56,11 +61,9 @@ public class MainController {
 
     private final Map<String, AQIData> cityData = new HashMap<>();
 
-    // Animation Properties
     private IntegerProperty currentAqiValue = new SimpleIntegerProperty(0);
     private Timeline aqiTimeline;
 
-    // Autocomplete list
     private final List<String> allCities = Arrays.asList(
             "Delhi", "Mumbai", "Chennai", "Bangalore",
             "Kolkata", "Kochi", "Hyderabad", "Pune", "Ahmedabad"
@@ -93,12 +96,10 @@ public class MainController {
 
         cityField.textProperty().addListener((observable, oldValue, newValue) -> {
             suggestionsPopup.getItems().clear();
-
             if (newValue == null || newValue.trim().isEmpty()) {
                 suggestionsPopup.hide();
                 return;
             }
-
             String filter = newValue.toLowerCase();
             for (String city : allCities) {
                 if (city.toLowerCase().startsWith(filter)) {
@@ -110,7 +111,6 @@ public class MainController {
                     suggestionsPopup.getItems().add(item);
                 }
             }
-
             if (suggestionsPopup.getItems().isEmpty()) {
                 suggestionsPopup.hide();
             } else {
@@ -120,20 +120,17 @@ public class MainController {
             }
         });
 
-        // Hide popup when text field loses focus
         cityField.focusedProperty().addListener((obs, oldVal, newVal) -> {
-            if (!newVal) {
-                suggestionsPopup.hide();
-            }
+            if (!newVal) suggestionsPopup.hide();
         });
     }
 
     private void buildProgrammaticUI() {
-        mainArea.setBackground(new Background(new BackgroundFill(Color.web("#F0F4F8"), CornerRadii.EMPTY, Insets.EMPTY)));
+        rootBox.setBackground(new Background(new BackgroundFill(Color.web("#F0F4F8"), CornerRadii.EMPTY, Insets.EMPTY)));
 
-        sidebar.setBackground(new Background(new BackgroundFill(Color.WHITE, CornerRadii.EMPTY, Insets.EMPTY)));
-        sidebar.setEffect(new DropShadow(10, Color.color(0,0,0,0.05)));
-        sidebar.setViewOrder(-1.0);
+        topInputArea.setBackground(new Background(new BackgroundFill(Color.WHITE, new CornerRadii(12), Insets.EMPTY)));
+        topInputArea.setEffect(new DropShadow(10, Color.color(0,0,0,0.05)));
+        topInputArea.setPadding(new Insets(25));
 
         headerLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 24));
         headerLabel.setTextFill(Color.web("#2C3E50"));
@@ -148,16 +145,18 @@ public class MainController {
         symptomIrritation.setTextFill(checkboxColor);
         symptomFatigue.setTextFill(checkboxColor);
 
-        // Styling the new TextField
-        cityField.setStyle("-fx-background-color: #F8F9FA; -fx-border-color: #D1D5DB; -fx-border-radius: 4; -fx-padding: 6;");
+        cityField.setStyle("-fx-background-color: #F8F9FA; -fx-border-color: #D1D5DB; -fx-border-radius: 4; -fx-padding: 8;");
 
         predictButton.setBackground(new Background(new BackgroundFill(Color.web("#3498DB"), new CornerRadii(6), Insets.EMPTY)));
         predictButton.setTextFill(Color.WHITE);
         predictButton.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
         predictButton.setPadding(new Insets(12));
-
         predictButton.setOnMouseEntered(e -> predictButton.setBackground(new Background(new BackgroundFill(Color.web("#2980B9"), new CornerRadii(6), Insets.EMPTY))));
         predictButton.setOnMouseExited(e -> predictButton.setBackground(new Background(new BackgroundFill(Color.web("#3498DB"), new CornerRadii(6), Insets.EMPTY))));
+
+        aqiCard.setBackground(new Background(new BackgroundFill(Color.WHITE, new CornerRadii(12), Insets.EMPTY)));
+        aqiCard.setEffect(new DropShadow(10, Color.color(0,0,0,0.05)));
+        aqiCard.setPadding(new Insets(30));
 
         cityLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 36));
         cityLabel.setTextFill(Color.web("#2C3E50"));
@@ -177,13 +176,12 @@ public class MainController {
         aqiCircle.setBorder(new Border(new BorderStroke(Color.web("#E0E0E0"), BorderStrokeStyle.SOLID, new CornerRadii(120), new BorderWidths(8))));
         aqiCircle.setEffect(new DropShadow(15, Color.color(0,0,0,0.08)));
 
-        // 6. Floating Advice Card Styling
+        // Medical Card with dark background and white text
         adviceCard.setBackground(new Background(new BackgroundFill(Color.web("#2C3E50"), new CornerRadii(12), Insets.EMPTY)));
         adviceCard.setEffect(new DropShadow(15, Color.color(0,0,0,0.1)));
-        HBox.setMargin(adviceCard, new Insets(40, 40, 40, 0));
+        adviceCard.setPadding(new Insets(30));
 
-        // NEW FONTS FOR MEDICAL ADVISORY
-        adviceTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 20));
+        adviceTitle.setFont(Font.font("Georgia", FontWeight.BOLD, 20));
         adviceTitle.setTextFill(Color.web("#3498DB"));
 
         adviceText.setFont(Font.font("Verdana", FontWeight.NORMAL, 14));
@@ -219,12 +217,13 @@ public class MainController {
 
         String advice = buildHealthAdvice(predictedAQI);
 
+        // Pass the respective image file name for each category!
         if (predictedAQI <= 100) {
-            applyStyles("GOOD", Color.web("#2ECC71"), advice);
+            applyStyles("GOOD", Color.web("#2ECC71"), advice, "/good.png");
         } else if (predictedAQI <= 200) {
-            applyStyles("MODERATE", Color.web("#F1C40F"), advice);
+            applyStyles("MODERATE", Color.web("#F1C40F"), advice, "/moderate.png");
         } else {
-            applyStyles("POOR", Color.web("#E74C3C"), advice);
+            applyStyles("POOR", Color.web("#E74C3C"), advice, "/poor.png");
             showAlert("Health Advisory ⚠️", "Air quality is UNHEALTHY.\nTake precautions.", Color.web("#FDEDEC"));
         }
     }
@@ -268,7 +267,8 @@ public class MainController {
         return advice.toString();
     }
 
-    private void applyStyles(String status, Color alertColor, String advice) {
+    // NEW: Accepts the imagePath string
+    private void applyStyles(String status, Color alertColor, String advice, String imagePath) {
         aqiStatus.setText(status);
         aqiStatus.setTextFill(alertColor);
         aqiLabel.setTextFill(alertColor);
@@ -277,6 +277,18 @@ public class MainController {
         adviceText.setTextFill(Color.WHITE);
 
         aqiCircle.setBorder(new Border(new BorderStroke(alertColor, BorderStrokeStyle.SOLID, new CornerRadii(120), new BorderWidths(8))));
+
+        // Safely attempts to load the image based on the path
+        try {
+            var resourceStream = getClass().getResourceAsStream(imagePath);
+            if (resourceStream != null) {
+                aqiImage.setImage(new Image(resourceStream));
+            } else {
+                aqiImage.setImage(null); // Clears the image if the file is missing
+            }
+        } catch (Exception e) {
+            aqiImage.setImage(null);
+        }
     }
 
     private void showAlert(String title, String message, Color bgColor) {

@@ -32,6 +32,11 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- Spring JDBC (simple SQL queries, no JPA needed) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
