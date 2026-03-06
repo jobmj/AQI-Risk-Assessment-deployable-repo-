@@ -4,42 +4,44 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<HBox xmlns="http://javafx.com/javafx/21"
+<VBox xmlns="http://javafx.com/javafx/21"
       xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.example.test2.MainController"
-      fx:id="rootBox">
+      fx:id="rootBox"
+      spacing="30">
 
-    <VBox fx:id="sidebar" prefWidth="320" spacing="25" alignment="TOP_CENTER">
-        <padding>
-            <Insets top="40" right="25" bottom="40" left="25"/>
-        </padding>
+    <padding>
+        <Insets top="30" right="40" bottom="40" left="40"/>
+    </padding>
 
-        <Label fx:id="headerLabel" text="AQI STATION"/>
-        <Separator fx:id="navDivider"/>
+    <HBox fx:id="topInputArea" spacing="40" alignment="CENTER_LEFT">
 
-        <VBox spacing="10" alignment="CENTER_LEFT" maxWidth="Infinity">
+        <VBox spacing="15" prefWidth="320">
+            <Label fx:id="headerLabel" text="AQI STATION"/>
+            <Separator/>
             <Label text="Select Location" textFill="#8e9bb0"/>
             <TextField fx:id="cityField" promptText="Enter city (Delhi, Kochi...)" maxWidth="Infinity"/>
+            <Button fx:id="predictButton" text="PREDICT NOW" maxWidth="Infinity" onAction="#searchCityAQI"/>
         </VBox>
 
-        <Button fx:id="predictButton" text="PREDICT NOW" maxWidth="Infinity" onAction="#searchCityAQI"/>
+        <Separator orientation="VERTICAL"/>
 
-        <Region VBox.vgrow="ALWAYS" /> <VBox spacing="15" alignment="CENTER_LEFT" maxWidth="Infinity">
-        <Label fx:id="symptomsTitle" text="Patient Symptoms"/>
-        <CheckBox fx:id="symptomBreath" text="Shortness of breath"/>
-        <CheckBox fx:id="symptomCough" text="Cough / Wheezing"/>
-        <CheckBox fx:id="symptomChest" text="Chest Tightness"/>
-        <CheckBox fx:id="symptomIrritation" text="Eye / Throat Irritation"/>
-        <CheckBox fx:id="symptomFatigue" text="Headache / Fatigue"/>
-    </VBox>
-    </VBox>
+        <VBox spacing="15" HBox.hgrow="ALWAYS" alignment="CENTER_LEFT">
+            <Label fx:id="symptomsTitle" text="PATIENT SYMPTOMS"/>
+            <FlowPane hgap="25" vgap="15">
+                <CheckBox fx:id="symptomBreath" text="Shortness of breath"/>
+                <CheckBox fx:id="symptomCough" text="Cough / Wheezing"/>
+                <CheckBox fx:id="symptomChest" text="Chest Tightness"/>
+                <CheckBox fx:id="symptomIrritation" text="Eye / Throat Irritation"/>
+                <CheckBox fx:id="symptomFatigue" text="Headache / Fatigue"/>
+            </FlowPane>
+        </VBox>
 
-    <HBox fx:id="mainArea" HBox.hgrow="ALWAYS">
+    </HBox>
 
-        <VBox fx:id="aqiSection" HBox.hgrow="ALWAYS" alignment="CENTER" spacing="25">
-            <padding>
-                <Insets top="40" right="20" bottom="40" left="20"/>
-            </padding>
+    <HBox fx:id="mainArea" spacing="30" VBox.vgrow="ALWAYS">
+
+        <VBox fx:id="aqiCard" HBox.hgrow="ALWAYS" alignment="CENTER" spacing="25">
             <Label fx:id="cityLabel" text="Awaiting Input..."/>
 
             <StackPane fx:id="aqiCircle" prefWidth="240" prefHeight="240" maxWidth="240" maxHeight="240">
@@ -57,10 +59,7 @@
             </HBox>
         </VBox>
 
-        <VBox fx:id="adviceCard" prefWidth="420" spacing="15" alignment="TOP_CENTER">
-            <padding>
-                <Insets top="30" right="25" bottom="30" left="25"/>
-            </padding>
+        <VBox fx:id="adviceCard" prefWidth="450" spacing="15" alignment="TOP_CENTER">
             <Label fx:id="adviceTitle" text="MEDICAL ADVISORY"/>
 
             <ScrollPane fx:id="adviceScrollPane" fitToWidth="true" VBox.vgrow="ALWAYS"
@@ -71,4 +70,4 @@
 
     </HBox>
 
-</HBox>
+</VBox>
