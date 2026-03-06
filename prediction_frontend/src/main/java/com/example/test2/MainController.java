@@ -14,9 +14,12 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.TextAlignment;
 import javafx.geometry.Insets;
+import javafx.geometry.Side;
 import javafx.scene.effect.DropShadow;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class MainController {
@@ -28,7 +31,9 @@ public class MainController {
     @FXML private VBox sidebar;
     @FXML private HBox mainArea;
     @FXML private Label headerLabel;
-    @FXML private ComboBox<String> cityBox;
+
+    // Updated to TextField for typing input
+    @FXML private TextField cityField;
     @FXML private Button predictButton;
 
     @FXML private Label symptomsTitle;
@@ -55,6 +60,12 @@ public class MainController {
     private IntegerProperty currentAqiValue = new SimpleIntegerProperty(0);
     private Timeline aqiTimeline;
 
+    // Autocomplete list
+    private final List<String> allCities = Arrays.asList(
+            "Delhi", "Mumbai", "Chennai", "Bangalore",
+            "Kolkata", "Kochi", "Hyderabad", "Pune", "Ahmedabad"
+    );
+
     /* =======================
        INITIALIZE
        ======================= */
@@ -62,7 +73,6 @@ public class MainController {
     public void initialize() {
         buildProgrammaticUI();
 
-        // Bind the label's text directly to our animated integer property
         aqiLabel.textProperty().bind(currentAqiValue.asString());
 
         cityData.put("delhi", new AQIData("Delhi", 265, 185, 320));
@@ -75,20 +85,56 @@ public class MainController {
         cityData.put("pune", new AQIData("Pune", 90, 45, 100));
         cityData.put("ahmedabad", new AQIData("Ahmedabad", 240, 180, 290));
 
-        cityBox.getItems().addAll("Delhi", "Mumbai", "Chennai", "Bangalore", "Kolkata", "Kochi", "Hyderabad", "Pune", "Ahmedabad");
-        cityBox.setEditable(true);
+        setupAutoComplete();
+    }
+
+    private void setupAutoComplete() {
+        ContextMenu suggestionsPopup = new ContextMenu();
+
+        cityField.textProperty().addListener((observable, oldValue, newValue) -> {
+            suggestionsPopup.getItems().clear();
+
+            if (newValue == null || newValue.trim().isEmpty()) {
+                suggestionsPopup.hide();
+                return;
+            }
+
+            String filter = newValue.toLowerCase();
+            for (String city : allCities) {
+                if (city.toLowerCase().startsWith(filter)) {
+                    MenuItem item = new MenuItem(city);
+                    item.setOnAction(e -> {
+                        cityField.setText(city);
+                        suggestionsPopup.hide();
+                    });
+                    suggestionsPopup.getItems().add(item);
+                }
+            }
+
+            if (suggestionsPopup.getItems().isEmpty()) {
+                suggestionsPopup.hide();
+            } else {
+                if (!suggestionsPopup.isShowing() && cityField.getScene() != null) {
+                    suggestionsPopup.show(cityField, Side.BOTTOM, 0, 0);
+                }
+            }
+        });
+
+        // Hide popup when text field loses focus
+        cityField.focusedProperty().addListener((obs, oldVal, newVal) -> {
+            if (!newVal) {
+                suggestionsPopup.hide();
+            }
+        });
     }
 
     private void buildProgrammaticUI() {
-        // 1. Light Blue Theme Backgrounds
         mainArea.setBackground(new Background(new BackgroundFill(Color.web("#F0F4F8"), CornerRadii.EMPTY, Insets.EMPTY)));
 
-        // Sidebar: Pure White with a subtle shadow
         sidebar.setBackground(new Background(new BackgroundFill(Color.WHITE, CornerRadii.EMPTY, Insets.EMPTY)));
         sidebar.setEffect(new DropShadow(10, Color.color(0,0,0,0.05)));
         sidebar.setViewOrder(-1.0);
 
-        // 2. Sidebar Typography & Colors
         headerLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 24));
         headerLabel.setTextFill(Color.web("#2C3E50"));
 
@@ -102,7 +148,9 @@ public class MainController {
         symptomIrritation.setTextFill(checkboxColor);
         symptomFatigue.setTextFill(checkboxColor);
 
-        // 3. Button Styling
+        // Styling the new TextField
+        cityField.setStyle("-fx-background-color: #F8F9FA; -fx-border-color: #D1D5DB; -fx-border-radius: 4; -fx-padding: 6;");
+
         predictButton.setBackground(new Background(new BackgroundFill(Color.web("#3498DB"), new CornerRadii(6), Insets.EMPTY)));
         predictButton.setTextFill(Color.WHITE);
         predictButton.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
@@ -111,7 +159,6 @@ public class MainController {
         predictButton.setOnMouseEntered(e -> predictButton.setBackground(new Background(new BackgroundFill(Color.web("#2980B9"), new CornerRadii(6), Insets.EMPTY))));
         predictButton.setOnMouseExited(e -> predictButton.setBackground(new Background(new BackgroundFill(Color.web("#3498DB"), new CornerRadii(6), Insets.EMPTY))));
 
-        // 4. Main Area Typography
         cityLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 36));
         cityLabel.setTextFill(Color.web("#2C3E50"));
 
@@ -126,22 +173,21 @@ public class MainController {
         pm10Label.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 16));
         pm10Label.setTextFill(Color.web("#7F8C8D"));
 
-        // 5. Setup the Circular AQI Base
         aqiCircle.setBackground(new Background(new BackgroundFill(Color.WHITE, new CornerRadii(120), Insets.EMPTY)));
         aqiCircle.setBorder(new Border(new BorderStroke(Color.web("#E0E0E0"), BorderStrokeStyle.SOLID, new CornerRadii(120), new BorderWidths(8))));
         aqiCircle.setEffect(new DropShadow(15, Color.color(0,0,0,0.08)));
 
         // 6. Floating Advice Card Styling
-        // 6. Floating Advice Card Styling (Contrasting Dark Navy Panel)
         adviceCard.setBackground(new Background(new BackgroundFill(Color.web("#2C3E50"), new CornerRadii(12), Insets.EMPTY)));
         adviceCard.setEffect(new DropShadow(15, Color.color(0,0,0,0.1)));
         HBox.setMargin(adviceCard, new Insets(40, 40, 40, 0));
 
-        adviceTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
-        adviceTitle.setTextFill(Color.web("#3498DB")); // Bright blue header to stand out
+        // NEW FONTS FOR MEDICAL ADVISORY
+        adviceTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 20));
+        adviceTitle.setTextFill(Color.web("#3498DB"));
 
-        adviceText.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 15));
-        adviceText.setTextFill(Color.WHITE); // Pure white text for readability
+        adviceText.setFont(Font.font("Verdana", FontWeight.NORMAL, 14));
+        adviceText.setTextFill(Color.WHITE);
         adviceText.setTextAlignment(TextAlignment.LEFT);
     }
 
@@ -150,7 +196,7 @@ public class MainController {
        ======================= */
     @FXML
     private void searchCityAQI() {
-        String cityInput = cityBox.getEditor().getText().trim().toLowerCase();
+        String cityInput = cityField.getText().trim().toLowerCase();
 
         if (!cityData.containsKey(cityInput)) {
             showAlert("City Not Found", "No AQI data available for this city.", Color.WHITE);
@@ -164,7 +210,6 @@ public class MainController {
         pm25Label.setText("PM2.5: " + data.pm25() + " µg/m³");
         pm10Label.setText("PM10: " + data.pm10() + " µg/m³");
 
-        // 1. Play the count-up animation
         if (aqiTimeline != null) aqiTimeline.stop();
         currentAqiValue.set(0);
         aqiTimeline = new Timeline(
@@ -172,10 +217,8 @@ public class MainController {
         );
         aqiTimeline.play();
 
-        // 2. Load the advice text
         String advice = buildHealthAdvice(predictedAQI);
 
-        // 3. Apply styles
         if (predictedAQI <= 100) {
             applyStyles("GOOD", Color.web("#2ECC71"), advice);
         } else if (predictedAQI <= 200) {
@@ -231,7 +274,7 @@ public class MainController {
         aqiLabel.setTextFill(alertColor);
 
         adviceText.setText(advice);
-        adviceText.setTextFill(Color.WHITE); // Ensure updated text stays white
+        adviceText.setTextFill(Color.WHITE);
 
         aqiCircle.setBorder(new Border(new BorderStroke(alertColor, BorderStrokeStyle.SOLID, new CornerRadii(120), new BorderWidths(8))));
     }
@@ -243,7 +286,6 @@ public class MainController {
         alert.setContentText(message);
         DialogPane dialogPane = alert.getDialogPane();
         dialogPane.setBackground(new Background(new BackgroundFill(bgColor, CornerRadii.EMPTY, Insets.EMPTY)));
-        // Ensure alert text is readable on light background
         dialogPane.lookup(".content.label").setStyle("-fx-text-fill: #2C3E50; -fx-font-size: 14px;");
         alert.show();
     }
