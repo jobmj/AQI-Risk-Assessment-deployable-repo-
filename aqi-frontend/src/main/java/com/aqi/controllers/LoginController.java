@@ -8,8 +8,14 @@ import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 
+<<<<<<< Updated upstream
 import java.security.MessageDigest;
 import java.nio.charset.StandardCharsets;
+=======
+// IMPORTANT: Added the BCrypt import!
+import org.mindrot.jbcrypt.BCrypt;
+
+>>>>>>> Stashed changes
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -21,6 +27,7 @@ public class LoginController {
     @FXML private PasswordField passwordField;
     @FXML private Label statusLabel;
 
+    // Fixed: Only one @FXML annotation here
     @FXML
     private void handleLogin() {
         String email    = emailField.getText().trim();
@@ -31,17 +38,28 @@ public class LoginController {
             return;
         }
 
+<<<<<<< Updated upstream
         String hashedPassword = hashPassword(password);
         String query = "SELECT user_id, username FROM users WHERE email = ? AND password_hash = ?";
+=======
+        // 1. ONLY search by email, and ask for the saved hash back
+        String query = "SELECT user_id, username, password_hash FROM users WHERE email = ?";
+>>>>>>> Stashed changes
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query)) {
 
             pstmt.setString(1, email);
+<<<<<<< Updated upstream
             pstmt.setString(2, hashedPassword);
+=======
+
+>>>>>>> Stashed changes
             ResultSet rs = pstmt.executeQuery();
 
+            // 2. Did we find an account with that email?
             if (rs.next()) {
+<<<<<<< Updated upstream
                 String userId   = rs.getString("user_id");
                 String username = rs.getString("username");
 
@@ -58,6 +76,25 @@ public class LoginController {
                 }
 
             } else {
+=======
+                String savedHash = rs.getString("password_hash");
+
+                // 3. Does the typed password match the saved hash?
+                if (BCrypt.checkpw(password, savedHash)) {
+
+                    // Login Success!
+                    String userId = rs.getString("user_id");
+                    UserSession.setUserId(userId);
+                    System.out.println("User " + rs.getString("username") + " logged in!");
+                    SceneManager.switchScene("/fxml/Dashboard.fxml");
+
+                } else {
+                    // Password was wrong
+                    statusLabel.setText("Invalid email or password.");
+                }
+            } else {
+                // Email was not found in the database
+>>>>>>> Stashed changes
                 statusLabel.setText("Invalid email or password.");
             }
 
@@ -78,6 +115,7 @@ public class LoginController {
         }
     }
 
+<<<<<<< Updated upstream
     private String hashPassword(String password) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
@@ -92,6 +130,11 @@ public class LoginController {
         } catch (Exception e) {
             throw new RuntimeException("Failed to hash password", e);
         }
+=======
+    @FXML
+    private void goToAbout() {
+        SceneManager.switchScene("/fxml/About.fxml");
+>>>>>>> Stashed changes
     }
 
     @FXML private void goToSignUp() { SceneManager.switchScene("/fxml/SignUp.fxml"); }
