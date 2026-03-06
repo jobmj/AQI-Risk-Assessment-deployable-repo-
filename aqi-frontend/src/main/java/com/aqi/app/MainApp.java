@@ -17,8 +17,8 @@ public class MainApp extends Application {
 
     private static void startBackend() {
         try {
-            String jarPath = "C:\\Users\\Fahad\\Desktop\\my works\\Java AP project\\AQI-Risk-Assessment\\homepage_backend\\target\\aqi-backend-0.0.1-SNAPSHOT.jar";
-
+           
+            String jarPath = System.getProperty("user.dir") + "\\..\\homepage_backend\\target\\aqi-backend-0.0.1-SNAPSHOT.jar";
             backendProcess = new ProcessBuilder("java", "-jar", jarPath)
                     .redirectErrorStream(true)
                     .start();
