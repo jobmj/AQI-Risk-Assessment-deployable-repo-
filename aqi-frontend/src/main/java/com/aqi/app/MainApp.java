@@ -23,7 +23,58 @@ public class MainApp extends Application {
         primaryStage.show();
     }
 
-    public static void main(String[] args) {
+    private static Process backendProcess;
+
+    public static void main(String[] args) throws Exception {
+        startBackend();
         launch(args);
+    }
+
+    private static void startBackend() {
+        try {
+            // Path to your backend JAR (build it first with mvn package)
+            String jarPath = "C:\\Users\\Fahad\\Desktop\\my works\\Java AP project\\AQI-Risk-Assessment\\homepage_backend\\target\\aqi-backend-0.0.1-SNAPSHOT.jar";
+
+            backendProcess = new ProcessBuilder("java", "-jar", jarPath)
+                    .redirectErrorStream(true)
+                    .start();
+
+            System.out.println("Backend starting...");
+
+            // Wait for backend to be ready (poll until it responds)
+            waitForBackend();
+
+        } catch (Exception e) {
+            System.err.println("Failed to start backend: " + e.getMessage());
+        }
+    }
+
+    private static void waitForBackend() {
+        java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+        java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                .uri(java.net.URI.create("http://localhost:8080/actuator/health"))
+                .build();
+
+        for (int i = 0; i < 30; i++) { // try for 30 seconds
+            try {
+                Thread.sleep(1000);
+                var response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() == 200) {
+                    System.out.println("Backend is ready!");
+                    return;
+                }
+            } catch (Exception e) {
+                System.out.println("Waiting for backend... attempt " + (i + 1));
+            }
+        }
+    }
+
+    // Shut down backend when app closes
+    @Override
+    public void stop() {
+        if (backendProcess != null && backendProcess.isAlive()) {
+            backendProcess.destroy();
+            System.out.println("Backend stopped.");
+        }
     }
 }
