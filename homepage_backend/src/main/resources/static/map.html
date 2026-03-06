@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🇮🇳 India AQI Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; font-family: 'Segoe UI', sans-serif; }
+        #topbar {
+            position: fixed; top: 0; left: 0; right: 0; height: 54px;
+            z-index: 1000; background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+            display: flex; align-items: center; padding: 0 20px; gap: 16px;
+        }
+        #topbar h1 { font-size: 18px; color: #333; font-weight: 700; }
+        #topbar span { font-size: 13px; color: #888; }
+        #refresh-btn {
+            margin-left: auto; background: #1a73e8; color: white;
+            border: none; border-radius: 20px; padding: 7px 18px;
+            font-size: 13px; cursor: pointer; font-weight: 600;
+        }
+        #refresh-btn:hover { background: #1557b0; }
+        #map { position: fixed; top: 54px; left: 0; right: 0; bottom: 0; }
+        #overlay {
+            position: fixed; top: 54px; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.85);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 999; transition: opacity 0.4s;
+        }
+        #overlay.hidden { opacity: 0; pointer-events: none; }
+        .spinner {
+            width: 48px; height: 48px;
+            border: 5px solid #ddd; border-top-color: #1a73e8;
+            border-radius: 50%; animation: spin 0.9s linear infinite;
+            margin-bottom: 16px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .load-text { font-size: 15px; color: #555; font-weight: 500; }
+        .legend {
+            background: white; padding: 14px 18px; border-radius: 14px;
+            box-shadow: 0 2px 14px rgba(0,0,0,0.13); line-height: 2; font-size: 13px;
+        }
+        .legend-title { font-weight: 700; font-size: 14px; color: #333; margin-bottom: 4px; }
+        .leg { display: flex; align-items: center; gap: 9px; }
+        .dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+        #stats {
+            position: fixed; top: 64px; left: 10px; background: white;
+            border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.13);
+            padding: 12px 16px; font-size: 13px; z-index: 500; min-width: 160px;
+        }
+        #stats .stat-title { font-weight: 700; color: #333; margin-bottom: 8px; font-size: 14px; }
+        #stats .stat-row { display: flex; justify-content: space-between; gap: 12px; color: #555; padding: 2px 0; }
+        #stats .stat-val { font-weight: 700; }
+    </style>
+</head>
+<body>
+<div id="topbar">
+    <h1>🗺️ India AQI Map</h1>
+    <span>Live air quality — major Indian cities</span>
+    <button id="refresh-btn" onclick="loadData()">🔄 Refresh</button>
+</div>
+<div id="overlay">
+    <div class="spinner"></div>
+    <div class="load-text">Loading AQI data for Indian cities...</div>
+</div>
+<div id="stats">
+    <div class="stat-title">📊 Summary</div>
+    <div class="stat-row"><span>Cities loaded</span><span class="stat-val" id="s-count">--</span></div>
+    <div class="stat-row"><span>Avg AQI</span><span class="stat-val" id="s-avg">--</span></div>
+    <div class="stat-row"><span>Worst city</span><span class="stat-val" id="s-worst">--</span></div>
+</div>
+<div id="map"></div>
+
+<script>
+    var map = L.map('map').fitBounds([[6.5, 68.0], [37.5, 97.5]]);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors', maxZoom: 18
+    }).addTo(map);
+
+    var markersLayer = L.layerGroup().addTo(map);
+
+    // ── Correct CPCB India AQI Scale ─────────────────────────────
+    function getColor(aqi) {
+        if (aqi <= 50)  return '#27ae60'; // Good
+        if (aqi <= 100) return '#a8d82e'; // Satisfactory
+        if (aqi <= 150) return '#f39c12'; // Moderate
+        if (aqi <= 200) return '#e67e22'; // Poor
+        if (aqi <= 300) return '#e74c3c'; // Very Poor
+        return '#8e44ad';                 // Severe
+    }
+    function getLabel(aqi) {
+        if (aqi <= 50)  return 'Good';
+        if (aqi <= 100) return 'Satisfactory';
+        if (aqi <= 150) return 'Moderate';
+        if (aqi <= 200) return 'Poor';
+        if (aqi <= 300) return 'Very Poor';
+        return 'Severe';
+    }
+
+    function makeMarker(city) {
+        var c = getColor(city.aqi);
+        var s = city.aqi > 200 ? 46 : city.aqi > 100 ? 40 : 34;
+        var icon = L.divIcon({
+            className: '',
+            html: '<div style="background:' + c + ';color:#fff;border-radius:50%;'
+                + 'width:' + s + 'px;height:' + s + 'px;'
+                + 'display:flex;align-items:center;justify-content:center;'
+                + 'font-weight:700;font-size:' + (s > 40 ? 13 : 11) + 'px;'
+                + 'border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,0.3);">'
+                + city.aqi + '</div>',
+            iconSize: [s, s], iconAnchor: [s/2, s/2]
+        });
+        var m = L.marker([city.lat, city.lon], { icon: icon });
+        m.bindPopup(
+            '<div style="font-family:Segoe UI,sans-serif;min-width:195px;padding:4px;">'
+            + '<div style="font-size:16px;font-weight:700;color:#333;margin-bottom:10px;">📍 ' + city.name + '</div>'
+            + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">'
+            + '<div style="background:' + c + ';color:#fff;padding:5px 14px;border-radius:20px;font-weight:700;font-size:18px;">AQI ' + city.aqi + '</div>'
+            + '<span style="color:' + c + ';font-weight:700;font-size:14px;">' + getLabel(city.aqi) + '</span></div>'
+            + '<table style="font-size:13px;color:#555;width:100%;border-collapse:collapse;">'
+            + '<tr><td style="padding:3px 8px 3px 0">🌫 PM2.5</td><td><b>' + parseFloat(city.pm25||0).toFixed(1) + ' µg/m³</b></td></tr>'
+            + '<tr><td style="padding:3px 8px 3px 0">💨 PM10</td><td><b>'  + parseFloat(city.pm10||0).toFixed(1) + ' µg/m³</b></td></tr>'
+            + '<tr><td style="padding:3px 8px 3px 0">🌡 Temp</td><td><b>'  + parseFloat(city.temp||0).toFixed(1) + '°C</b></td></tr>'
+            + '</table></div>',
+            { maxWidth: 250 }
+        );
+        return m;
+    }
+
+    function loadData() {
+        document.getElementById('overlay').classList.remove('hidden');
+        document.querySelector('.load-text').innerText = 'Loading AQI data for Indian cities...';
+        document.querySelector('.spinner').style.display = 'block';
+        markersLayer.clearLayers();
+
+        fetch('/api/aqi/map')
+            .then(function(r) { return r.json(); })
+            .then(function(cities) {
+                var total = 0, count = 0, worstAqi = 0, worstCity = '--';
+                cities.forEach(function(city) {
+                    if (city.aqi > 0 && city.lat > 6 && city.lat < 38
+                            && city.lon > 67 && city.lon < 98) {
+                        makeMarker(city).addTo(markersLayer);
+                        total += city.aqi; count++;
+                        if (city.aqi > worstAqi) { worstAqi = city.aqi; worstCity = city.name; }
+                    }
+                });
+                document.getElementById('s-count').innerText = count;
+                document.getElementById('s-avg').innerText = count > 0 ? Math.round(total/count) : '--';
+                document.getElementById('s-worst').innerText = worstCity;
+                document.getElementById('overlay').classList.add('hidden');
+            })
+            .catch(function() {
+                document.querySelector('.load-text').innerText = '❌ Cannot connect to Spring Boot backend';
+                document.querySelector('.spinner').style.display = 'none';
+            });
+    }
+
+    // ── Correct CPCB Legend ───────────────────────────────────────
+    var leg = L.control({ position: 'bottomright' });
+    leg.onAdd = function() {
+        var d = L.DomUtil.create('div', 'legend');
+        d.innerHTML = '<div class="legend-title">🇮🇳 AQI Scale (CPCB)</div>'
+            + '<div class="leg"><div class="dot" style="background:#27ae60"></div>0–50 Good</div>'
+            + '<div class="leg"><div class="dot" style="background:#a8d82e"></div>51–100 Satisfactory</div>'
+            + '<div class="leg"><div class="dot" style="background:#f39c12"></div>101–150 Moderate</div>'
+            + '<div class="leg"><div class="dot" style="background:#e67e22"></div>151–200 Poor</div>'
+            + '<div class="leg"><div class="dot" style="background:#e74c3c"></div>201–300 Very Poor</div>'
+            + '<div class="leg"><div class="dot" style="background:#8e44ad"></div>301+ Severe</div>';
+        return d;
+    };
+    leg.addTo(map);
+
+    loadData();
+</script>
+</body>
+</html>
