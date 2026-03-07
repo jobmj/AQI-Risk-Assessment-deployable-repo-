@@ -33,10 +33,6 @@ public class SignUpController {
     @FXML private PasswordField passwordField;
     @FXML private PasswordField confirmPasswordField;
     @FXML private Label statusLabel;
-    @FXML private TextField confirmPasswordVisibleField; // ADD THIS
-    @FXML private javafx.scene.control.Button toggleConfirmBtn; // ADD THIS
-
-    private boolean isConfirmVisible = false; // Tracks the state
 
     @FXML private Region passStrengthLine;
     @FXML private Region confirmPassStrengthLine;
@@ -50,6 +46,10 @@ public class SignUpController {
     @FXML private VBox otpBox;
     @FXML private TextField otpInput;
     @FXML private Button mainActionBtn;
+    @FXML private Button backToDashboardBtn;
+    @FXML private TextField confirmPasswordVisibleField;
+    @FXML private Button toggleConfirmBtn;
+    private boolean confirmVisible = false;
 
     private String generatedOtp;
     private int buttonState = 0;
@@ -59,15 +59,25 @@ public class SignUpController {
 
     @FXML
     public void initialize() {
-        confirmPasswordVisibleField.textProperty().bindBidirectional(confirmPasswordField.textProperty());
         passStrengthLine.setBackground(new Background(new BackgroundFill(currentPassColor, new CornerRadii(3), Insets.EMPTY)));
         confirmPassStrengthLine.setBackground(new Background(new BackgroundFill(currentConfirmColor, new CornerRadii(3), Insets.EMPTY)));
+
+        // Show back button only when a guest was redirected here from a restricted action
+        if (backToDashboardBtn != null) {
+            boolean showBack = UserSession.isGuestReturnToDashboard();
+            backToDashboardBtn.setVisible(showBack);
+            backToDashboardBtn.setManaged(showBack);
+        }
 
         passwordField.textProperty().addListener((observable, oldValue, newValue) -> {
             evaluatePasswordStrength(newValue);
             checkPasswordsMatch();
         });
         confirmPasswordField.textProperty().addListener((observable, oldValue, newValue) -> checkPasswordsMatch());
+        confirmPasswordVisibleField.textProperty().addListener((obs, o, n) -> {
+            confirmPasswordField.setText(n); // keep in sync for validation
+            checkPasswordsMatch();
+        });
         passwordField.focusedProperty().addListener((observable, wasFocused, isNowFocused) -> {
             if (isNowFocused && buttonState == 0) {
                 passwordConditionsBox.setVisible(true);
@@ -78,26 +88,7 @@ public class SignUpController {
             }
         });
     }
-    @FXML
-    private void toggleConfirmVisibility() {
-        isConfirmVisible = !isConfirmVisible;
 
-        if (isConfirmVisible) {
-            // Show plain text, hide dots
-            confirmPasswordVisibleField.setVisible(true);
-            confirmPasswordVisibleField.setManaged(true);
-            confirmPasswordField.setVisible(false);
-            confirmPasswordField.setManaged(false);
-            toggleConfirmBtn.setText("🙈"); // Or change to "Hide"
-        } else {
-            // Show dots, hide plain text
-            confirmPasswordVisibleField.setVisible(false);
-            confirmPasswordVisibleField.setManaged(false);
-            confirmPasswordField.setVisible(true);
-            confirmPasswordField.setManaged(true);
-            toggleConfirmBtn.setText("👁"); // Or change to "Show"
-        }
-    }
     private void animateLineColor(Region line, Color startColor, Color targetColor, boolean isPassLine) {
         if (startColor.equals(targetColor)) return;
         ObjectProperty<Color> colorProperty = new SimpleObjectProperty<>(startColor);
@@ -265,6 +256,33 @@ public class SignUpController {
         statusLabel.setText(message);
     }
 
-    @FXML private void goToLogin() { SceneManager.switchScene("/fxml/Login.fxml"); }
+    @FXML
+    private void toggleConfirmVisibility() {
+        confirmVisible = !confirmVisible;
+        if (confirmVisible) {
+            confirmPasswordVisibleField.setText(confirmPasswordField.getText());
+            confirmPasswordVisibleField.setVisible(true);
+            confirmPasswordVisibleField.setManaged(true);
+            confirmPasswordField.setVisible(false);
+            confirmPasswordField.setManaged(false);
+            toggleConfirmBtn.setText("🙈");
+        } else {
+            confirmPasswordField.setText(confirmPasswordVisibleField.getText());
+            confirmPasswordField.setVisible(true);
+            confirmPasswordField.setManaged(true);
+            confirmPasswordVisibleField.setVisible(false);
+            confirmPasswordVisibleField.setManaged(false);
+            toggleConfirmBtn.setText("👁");
+        }
+    }
+
+    @FXML
+    private void handleBackToDashboard() {
+        // Keep guest session alive, just go back
+        UserSession.setGuestReturnToDashboard(false);
+        SceneManager.switchScene("/com/example/aqidashboard/dashboard-view.fxml", "Dashboard");
+    }
+
+    @FXML private void goToLogin() { SceneManager.switchScene("/fxml/Login.fxml", "Login"); }
     @FXML private void goToAbout() { SceneManager.switchScene("/fxml/About.fxml"); }
 }

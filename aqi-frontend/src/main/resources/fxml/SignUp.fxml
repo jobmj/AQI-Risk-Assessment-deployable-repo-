@@ -18,6 +18,19 @@
 
     <center>
         <VBox alignment="CENTER">
+
+            <!-- Back to Dashboard — top-left, only shown when guest is redirected here -->
+            <HBox alignment="CENTER_LEFT" style="-fx-padding: 12 0 0 24;">
+                <Button fx:id="backToDashboardBtn" text="← Back to Dashboard"
+                        onAction="#handleBackToDashboard"
+                        visible="false" managed="false"
+                        style="-fx-background-color: #e8f0fe; -fx-text-fill: #1a73e8;
+                               -fx-font-weight: bold; -fx-font-size: 13px;
+                               -fx-background-radius: 10; -fx-border-color: #bfdbfe;
+                               -fx-border-radius: 10; -fx-border-width: 1;
+                               -fx-padding: 8 18; -fx-cursor: hand;"/>
+            </HBox>
+
             <VBox styleClass="card-light" alignment="CENTER_LEFT" spacing="15" maxWidth="400" maxHeight="650">
 
                 <Label text="Create Account" styleClass="title-label-light" style="-fx-padding: 0 0 5 0;"/>

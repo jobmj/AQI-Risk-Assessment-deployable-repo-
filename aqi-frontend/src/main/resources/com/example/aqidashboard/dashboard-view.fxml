@@ -27,7 +27,7 @@
                            style="-fx-background-radius: 20; -fx-background-color: #f1f3f4; -fx-padding: 9 18; -fx-font-size: 13px;"/>
                 <Button text="Search" onAction="#handleCitySearch"
                         style="-fx-background-radius: 20; -fx-background-color: #1a73e8; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 9 18; -fx-cursor: hand;"/>
-                <Button text="Locate Me" onAction="#handleDetectLocation"
+                <Button fx:id="locateMeBtn" text="Locate Me" onAction="#handleDetectLocation"
                         style="-fx-background-radius: 20; -fx-background-color: white; -fx-border-color: #1a73e8; -fx-border-radius: 20; -fx-text-fill: #1a73e8; -fx-padding: 8 16; -fx-cursor: hand;"/>
             </HBox>
             <HBox alignment="CENTER_RIGHT" spacing="8" minWidth="380">
@@ -35,6 +35,8 @@
                         style="-fx-background-radius: 20; -fx-background-color: #f1f3f4; -fx-text-fill: #444; -fx-padding: 8 14; -fx-cursor: hand;"/>
                 <Button text="Predict AQI" onAction="#handleOpenPrediction"
                         style="-fx-background-radius: 20; -fx-background-color: #f3e8ff; -fx-text-fill: #7c3aed; -fx-font-weight: bold; -fx-padding: 8 14; -fx-cursor: hand;"/>
+                <Button fx:id="aqiMapBtn" text="🗺  AQI Map" onAction="#handleOpenAqiMap"
+                        style="-fx-background-radius: 20; -fx-background-color: #e6f4ea; -fx-text-fill: #1e8449; -fx-font-weight: bold; -fx-padding: 8 14; -fx-cursor: hand;"/>
                 <Button text="My Profile" onAction="#handleViewProfile"
                         style="-fx-background-radius: 20; -fx-background-color: #e8f0fe; -fx-text-fill: #1a73e8; -fx-padding: 8 14; -fx-cursor: hand;"/>
                 <Button text="Logout" onAction="#handleLogout"
@@ -346,6 +348,12 @@
                                 <Label text="Compared against WHO 24-hour safe limits"
                                        style="-fx-font-size: 12px; -fx-text-fill: #999;"/>
                             </VBox>
+                            <Region HBox.hgrow="ALWAYS"/>
+                            <Button fx:id="refreshPollutantsBtn" text="⟳  Refresh"
+                                    onAction="#handleRefreshPollutants"
+                                    style="-fx-background-radius: 20; -fx-background-color: #e8f0fe;
+                                           -fx-text-fill: #1a73e8; -fx-font-weight: bold;
+                                           -fx-font-size: 13px; -fx-padding: 8 20; -fx-cursor: hand;"/>
                         </HBox>
 
                         <!-- Pollutant cards grid — centered like cities -->
@@ -379,7 +387,7 @@
                                            -fx-text-fill: #1a73e8; -fx-font-weight: bold;
                                            -fx-padding: 8 18; -fx-cursor: hand;
                                            -fx-border-color: #c5d8fb; -fx-border-radius: 20; -fx-border-width: 1;"/>
-                            <Button text="Refresh" onAction="#handleRefreshCities"
+                            <Button fx:id="refreshCitiesBtn" text="Refresh" onAction="#handleRefreshCities"
                                     style="-fx-background-radius: 20; -fx-background-color: #e8f5e9;
                                            -fx-text-fill: #2e7d32; -fx-font-weight: bold;
                                            -fx-padding: 8 18; -fx-cursor: hand;
