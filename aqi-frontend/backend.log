@@ -7,87 +7,19 @@
  =========|_|==============|___/=/_/_/_/
  :: Spring Boot ::                (v3.2.0)
 
-2026-03-07T16:16:49.359+05:30  INFO 37012 --- [aqi-backend] [           main] c.e.aqi_backend.AqiBackendApplication    : Starting AqiBackendApplication v0.0.1-SNAPSHOT using Java 21.0.10 with PID 37012 (C:\Users\Fahad\Desktop\my works\Java AP project\AQI-Risk-Assessment\homepage_backend\target\aqi-backend-0.0.1-SNAPSHOT.jar started by Fahad in C:\Users\Fahad\Desktop\my works\Java AP project\AQI-Risk-Assessment\aqi-frontend)
-2026-03-07T16:16:49.362+05:30  INFO 37012 --- [aqi-backend] [           main] c.e.aqi_backend.AqiBackendApplication    : No active profile set, falling back to 1 default profile: "default"
-2026-03-07T16:16:51.733+05:30  INFO 37012 --- [aqi-backend] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8080 (http)
-2026-03-07T16:16:51.744+05:30  INFO 37012 --- [aqi-backend] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
-2026-03-07T16:16:51.745+05:30  INFO 37012 --- [aqi-backend] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.16]
-2026-03-07T16:16:51.799+05:30  INFO 37012 --- [aqi-backend] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
-2026-03-07T16:16:51.801+05:30  INFO 37012 --- [aqi-backend] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 2326 ms
-2026-03-07T16:16:53.196+05:30  INFO 37012 --- [aqi-backend] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint(s) beneath base path '/actuator'
-2026-03-07T16:16:53.341+05:30  INFO 37012 --- [aqi-backend] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8080 (http) with context path ''
-2026-03-07T16:16:53.355+05:30  INFO 37012 --- [aqi-backend] [           main] c.e.aqi_backend.AqiBackendApplication    : Started AqiBackendApplication in 4.891 seconds (process running for 5.954)
-2026-03-07T16:16:53.964+05:30  INFO 37012 --- [aqi-backend] [nio-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
-2026-03-07T16:16:53.964+05:30  INFO 37012 --- [aqi-backend] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
-2026-03-07T16:16:53.965+05:30  INFO 37012 --- [aqi-backend] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
-2026-03-07T16:16:54.026+05:30  INFO 37012 --- [aqi-backend] [nio-8080-exec-1] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
-2026-03-07T16:16:55.081+05:30  INFO 37012 --- [aqi-backend] [nio-8080-exec-1] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@12433c0e
-2026-03-07T16:16:55.092+05:30  INFO 37012 --- [aqi-backend] [nio-8080-exec-1] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
-=== Geocode URL: https://api.openweathermap.org/geo/1.0/direct?q=Kochi,IN&limit=1&appid=3d543d0636a4950860b22999f5301793
-=== Geocoded: Kochi -> 9.931308,76.2674136
-=== Weather: temp=28.5 humidity=71.0 wind=26.856
-=== Pollution response: {"coord":{"lon":76.2674,"lat":9.9313},"list":[{"main":{"aqi":3},"components":{"co":163.25,"no":0.03,"no2":0.21,"o3":71.24,"so2":0.43,"pm2_5":32.49,"pm10":39.05,"nh3":0},"dt":1772880281}]}
-=== Pollutants (µg/m³): pm25=32.49 pm10=39.05 no2=0.21 o3=71.24
-=== CPCB Sub-indices: {no2=0.2625, pm25=55.067, o3=71.81519999999999, so2=0.5375, pm10=39.05, co=8.1625}
-=== Final CPCB AQI: 72
-=== Geocode URL: https://api.openweathermap.org/geo/1.0/direct?q=Delhi,IN&limit=1&appid=3d543d0636a4950860b22999f5301793
-=== Geocoded: Delhi -> 28.6517178,77.2219388
-=== Weather: temp=34.66 humidity=10.0 wind=2.4480000000000004
-=== Pollution response: {"coord":{"lon":77.2219,"lat":28.6517},"list":[{"main":{"aqi":4},"components":{"co":308.18,"no":0.82,"no2":7.44,"o3":128.34,"so2":4.86,"pm2_5":61.11,"pm10":103.75,"nh3":20.84},"dt":1772880432}]}
-=== Pollutants (µg/m³): pm25=61.11 pm10=103.75 no2=7.44 o3=128.34
-=== CPCB Sub-indices: {no2=9.3, pm25=104.663, o3=142.25970588235293, so2=6.075, pm10=103.475, co=15.409}
-=== Final CPCB AQI: 142
-=== Geocode URL: https://api.openweathermap.org/geo/1.0/direct?q=New+Delhi,IN&limit=1&appid=3d543d0636a4950860b22999f5301793
-=== Geocoded: New Delhi -> 28.6138954,77.2090057
-=== Weather: temp=34.74 humidity=10.0 wind=2.2680000000000002
-=== Pollution response: {"coord":{"lon":77.209,"lat":28.6139},"list":[{"main":{"aqi":4},"components":{"co":308.18,"no":0.82,"no2":7.44,"o3":128.34,"so2":4.86,"pm2_5":61.11,"pm10":103.75,"nh3":20.84},"dt":1772880213}]}
-=== Pollutants (µg/m³): pm25=61.11 pm10=103.75 no2=7.44 o3=128.34
-=== CPCB Sub-indices: {no2=9.3, pm25=104.663, o3=142.25970588235293, so2=6.075, pm10=103.475, co=15.409}
-=== Final CPCB AQI: 142
-=== Geocode URL: https://api.openweathermap.org/geo/1.0/direct?q=New+Delhi,IN&limit=1&appid=3d543d0636a4950860b22999f5301793
-=== Geocoded: New Delhi -> 28.6138954,77.2090057
-=== Weather: temp=34.74 humidity=10.0 wind=2.2680000000000002
-=== Pollution response: {"coord":{"lon":77.209,"lat":28.6139},"list":[{"main":{"aqi":4},"components":{"co":308.18,"no":0.82,"no2":7.44,"o3":128.34,"so2":4.86,"pm2_5":61.11,"pm10":103.75,"nh3":20.84},"dt":1772880213}]}
-=== Pollutants (µg/m³): pm25=61.11 pm10=103.75 no2=7.44 o3=128.34
-=== CPCB Sub-indices: {no2=9.3, pm25=104.663, o3=142.25970588235293, so2=6.075, pm10=103.475, co=15.409}
-=== Final CPCB AQI: 142
-=== Geocode URL: https://api.openweathermap.org/geo/1.0/direct?q=New+Delhi,IN&limit=1&appid=3d543d0636a4950860b22999f5301793
-=== Geocoded: New Delhi -> 28.6138954,77.2090057
-=== Weather: temp=34.74 humidity=10.0 wind=2.2680000000000002
-=== Pollution response: {"coord":{"lon":77.209,"lat":28.6139},"list":[{"main":{"aqi":4},"components":{"co":308.18,"no":0.82,"no2":7.44,"o3":128.34,"so2":4.86,"pm2_5":61.11,"pm10":103.75,"nh3":20.84},"dt":1772880213}]}
-=== Pollutants (µg/m³): pm25=61.11 pm10=103.75 no2=7.44 o3=128.34
-=== CPCB Sub-indices: {no2=9.3, pm25=104.663, o3=142.25970588235293, so2=6.075, pm10=103.475, co=15.409}
-=== Final CPCB AQI: 142
-=== Geocode URL: https://api.openweathermap.org/geo/1.0/direct?q=Kollam,IN&limit=1&appid=3d543d0636a4950860b22999f5301793
-=== Geocoded: Kollam -> 8.8879509,76.5955013
-=== Weather: temp=28.89 humidity=69.0 wind=19.62
-=== Pollution response: {"coord":{"lon":76.5955,"lat":8.888},"list":[{"main":{"aqi":2},"components":{"co":147.18,"no":0.04,"no2":0.31,"o3":76.8,"so2":0.47,"pm2_5":20.32,"pm10":25.08,"nh3":0},"dt":1772880473}]}
-=== Pollutants (µg/m³): pm25=20.32 pm10=25.08 no2=0.31 o3=76.8
-=== CPCB Sub-indices: {no2=0.3875, pm25=33.86666666666667, o3=77.264, so2=0.5874999999999999, pm10=25.08, co=7.359}
-=== Final CPCB AQI: 77
-=== Geocode URL: https://api.openweathermap.org/geo/1.0/direct?q=Kollam,IN&limit=1&appid=3d543d0636a4950860b22999f5301793
-=== Geocoded: Kollam -> 8.8879509,76.5955013
-=== Weather: temp=28.89 humidity=69.0 wind=19.62
-=== Pollution response: {"coord":{"lon":76.5955,"lat":8.888},"list":[{"main":{"aqi":2},"components":{"co":147.18,"no":0.04,"no2":0.31,"o3":76.8,"so2":0.47,"pm2_5":20.32,"pm10":25.08,"nh3":0},"dt":1772880473}]}
-=== Pollutants (µg/m³): pm25=20.32 pm10=25.08 no2=0.31 o3=76.8
-=== CPCB Sub-indices: {no2=0.3875, pm25=33.86666666666667, o3=77.264, so2=0.5874999999999999, pm10=25.08, co=7.359}
-=== Final CPCB AQI: 77
-=== Geocode URL: https://api.openweathermap.org/geo/1.0/direct?q=Kollam,IN&limit=1&appid=3d543d0636a4950860b22999f5301793
-=== Geocoded: Kollam -> 8.8879509,76.5955013
-=== Weather: temp=28.89 humidity=69.0 wind=19.62
-=== Pollution response: {"coord":{"lon":76.5955,"lat":8.888},"list":[{"main":{"aqi":2},"components":{"co":147.18,"no":0.04,"no2":0.31,"o3":76.8,"so2":0.47,"pm2_5":20.32,"pm10":25.08,"nh3":0},"dt":1772880473}]}
-=== Pollutants (µg/m³): pm25=20.32 pm10=25.08 no2=0.31 o3=76.8
-=== CPCB Sub-indices: {no2=0.3875, pm25=33.86666666666667, o3=77.264, so2=0.5874999999999999, pm10=25.08, co=7.359}
-=== Final CPCB AQI: 77
-=== Geocode URL: https://api.openweathermap.org/geo/1.0/direct?q=Kochi,IN&limit=1&appid=3d543d0636a4950860b22999f5301793
-=== Geocoded: Kochi -> 9.931308,76.2674136
-=== Weather: temp=28.5 humidity=71.0 wind=26.856
-=== Pollution response: {"coord":{"lon":76.2674,"lat":9.9313},"list":[{"main":{"aqi":3},"components":{"co":163.25,"no":0.03,"no2":0.21,"o3":71.24,"so2":0.43,"pm2_5":32.49,"pm10":39.05,"nh3":0},"dt":1772880281}]}
-=== Pollutants (µg/m³): pm25=32.49 pm10=39.05 no2=0.21 o3=71.24
-=== CPCB Sub-indices: {no2=0.2625, pm25=55.067, o3=71.81519999999999, so2=0.5375, pm10=39.05, co=8.1625}
-=== Final CPCB AQI: 72
-=== Weather: temp=28.89 humidity=69.0 wind=19.62
-=== Pollution response: {"coord":{"lon":76.5856,"lat":8.8916},"list":[{"main":{"aqi":2},"components":{"co":147.18,"no":0.04,"no2":0.31,"o3":76.8,"so2":0.47,"pm2_5":20.32,"pm10":25.08,"nh3":0},"dt":1772880267}]}
-=== Pollutants (µg/m³): pm25=20.32 pm10=25.08 no2=0.31 o3=76.8
-=== CPCB Sub-indices: {no2=0.3875, pm25=33.86666666666667, o3=77.264, so2=0.5874999999999999, pm10=25.08, co=7.359}
-=== Final CPCB AQI: 77
+2026-03-07T16:58:48.867+05:30  INFO 22672 --- [aqi-backend] [           main] c.e.aqi_backend.AqiBackendApplication    : Starting AqiBackendApplication v0.0.1-SNAPSHOT using Java 21.0.10 with PID 22672 (C:\Users\Fahad\Desktop\my works\Java AP project\AQI-Risk-Assessment\homepage_backend\target\aqi-backend-0.0.1-SNAPSHOT.jar started by Fahad in C:\Users\Fahad\Desktop\my works\Java AP project\AQI-Risk-Assessment\aqi-frontend)
+2026-03-07T16:58:48.870+05:30  INFO 22672 --- [aqi-backend] [           main] c.e.aqi_backend.AqiBackendApplication    : No active profile set, falling back to 1 default profile: "default"
+2026-03-07T16:58:50.420+05:30  INFO 22672 --- [aqi-backend] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8080 (http)
+2026-03-07T16:58:50.430+05:30  INFO 22672 --- [aqi-backend] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-03-07T16:58:50.430+05:30  INFO 22672 --- [aqi-backend] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.16]
+2026-03-07T16:58:50.479+05:30  INFO 22672 --- [aqi-backend] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-03-07T16:58:50.480+05:30  INFO 22672 --- [aqi-backend] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1541 ms
+2026-03-07T16:58:51.428+05:30  INFO 22672 --- [aqi-backend] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint(s) beneath base path '/actuator'
+2026-03-07T16:58:51.520+05:30  INFO 22672 --- [aqi-backend] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8080 (http) with context path ''
+2026-03-07T16:58:51.531+05:30  INFO 22672 --- [aqi-backend] [           main] c.e.aqi_backend.AqiBackendApplication    : Started AqiBackendApplication in 3.214 seconds (process running for 3.867)
+2026-03-07T16:58:52.083+05:30  INFO 22672 --- [aqi-backend] [nio-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-03-07T16:58:52.083+05:30  INFO 22672 --- [aqi-backend] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-03-07T16:58:52.084+05:30  INFO 22672 --- [aqi-backend] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2026-03-07T16:58:52.133+05:30  INFO 22672 --- [aqi-backend] [nio-8080-exec-1] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-03-07T16:58:52.913+05:30  INFO 22672 --- [aqi-backend] [nio-8080-exec-1] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@6329174b
+2026-03-07T16:58:52.923+05:30  INFO 22672 --- [aqi-backend] [nio-8080-exec-1] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.

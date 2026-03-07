@@ -17,6 +17,7 @@ public class AqiController {
         this.aqiService = aqiService;
     }
 
+    // GET /api/aqi?city=Kochi
     @GetMapping("/aqi")
     public ResponseEntity<?> getAqi(@RequestParam String city) {
         try {
@@ -26,6 +27,7 @@ public class AqiController {
         }
     }
 
+    // GET /api/aqi/locate?lat=9.93&lon=76.26
     @GetMapping("/aqi/locate")
     public ResponseEntity<?> getAqiByLocation(@RequestParam double lat,
                                               @RequestParam double lon) {
@@ -36,8 +38,17 @@ public class AqiController {
         }
     }
 
-    // REMOVED: searchCities method to resolve ambiguity with SearchController
+    // GET /api/search?q=Koc
+    @GetMapping("/search")
+    public ResponseEntity<?> searchCities(@RequestParam String q) {
+        try {
+            return ResponseEntity.ok(aqiService.searchCities(q));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
 
+    // GET /api/forecast?city=Kochi
     @GetMapping("/forecast")
     public ResponseEntity<?> getForecast(@RequestParam String city) {
         try {
@@ -47,6 +58,7 @@ public class AqiController {
         }
     }
 
+    // GET /api/forecast/locate?lat=9.93&lon=76.26
     @GetMapping("/forecast/locate")
     public ResponseEntity<?> getForecastByLocation(@RequestParam double lat,
                                                    @RequestParam double lon) {
@@ -57,15 +69,7 @@ public class AqiController {
         }
     }
 
-    @GetMapping("/pollutants")
-    public ResponseEntity<?> getPollutants(@RequestParam String city) {
-        try {
-            return ResponseEntity.ok(aqiService.getPollutants(city));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
-    }
-
+    // GET /api/cities/india
     @GetMapping("/cities/india")
     public ResponseEntity<?> getIndiaCities() {
         try {

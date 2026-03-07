@@ -36,7 +36,7 @@ public class PdfExportService {
                 cs.beginText();
                 cs.setFont(bold, 22);
                 cs.newLineAtOffset(margin, y + 22);
-                cs.showText("AiQI  Air Quality Report");
+                cs.showText("AiQI  Air Quality Report");  // no emoji
                 cs.endText();
 
                 y -= 20;
@@ -75,7 +75,7 @@ public class PdfExportService {
                 y -= 50;
 
                 // Pollutants
-                drawSectionHeader(cs, bold, "Pollutant Concentrations", margin, y, width);
+                drawSectionHeader(cs, bold, "Pollutant Concentrations (ug/m3)", margin, y, width);
                 y -= 25;
 
                 String[][] pollutants = {
@@ -107,12 +107,12 @@ public class PdfExportService {
                 y -= 25;
 
                 String[][] weather = {
-                        {"Temperature",  String.format("%.1f C", data.path("temperature").asDouble())},
-                        {"Feels Like",   String.format("%.1f C", data.path("feelsLike").asDouble())},
-                        {"Humidity",     String.format("%.0f%%", data.path("humidity").asDouble())},
-                        {"Wind Speed",   String.format("%.1f km/h", data.path("windSpeed").asDouble())},
+                        {"Temperature",  String.format("%.1f C",   data.path("temperature").asDouble())},
+                        {"Feels Like",   String.format("%.1f C",   data.path("feelsLike").asDouble())},
+                        {"Humidity",     String.format("%.0f%%",   data.path("humidity").asDouble())},
+                        {"Wind Speed",   String.format("%.1f km/h",data.path("windSpeed").asDouble())},
                         {"Pressure",     String.format("%.0f hPa", data.path("pressure").asDouble())},
-                        {"Visibility",   String.format("%.1f km", data.path("visibility").asDouble())}
+                        {"Visibility",   String.format("%.1f km",  data.path("visibility").asDouble())}
                 };
 
                 c = 0;
@@ -141,7 +141,7 @@ public class PdfExportService {
 
                 y -= 40;
 
-                // Footer line
+                // Footer
                 cs.setNonStrokingColor(0.8f, 0.8f, 0.8f);
                 cs.addRect(margin, y, width - 2 * margin, 0.5f);
                 cs.fill();
@@ -155,7 +155,6 @@ public class PdfExportService {
                 cs.endText();
             }
 
-            // Save to Downloads
             String fileName = "AiQI_Report_" + city.replaceAll("[^a-zA-Z0-9]", "_") + "_"
                     + new SimpleDateFormat("yyyyMMdd_HHmm").format(new Date()) + ".pdf";
             File output = new File(System.getProperty("user.home")
