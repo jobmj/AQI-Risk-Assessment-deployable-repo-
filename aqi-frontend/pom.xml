@@ -17,6 +17,12 @@
         <junit.version>5.12.1</junit.version>
     </properties>
 
+    <dependency>
+        <groupId>org.openjfx</groupId>
+        <artifactId>javafx-web</artifactId>
+        <version>21</version>
+    </dependency>
+
     <dependencies>
         <!-- ===== JavaFX ===== -->
         <dependency>
