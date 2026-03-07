@@ -4,9 +4,7 @@ import com.aqi.utils.SceneManager;
 import com.aqi.utils.UserSession;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import javafx.animation.KeyFrame;
-import javafx.animation.KeyValue;
-import javafx.animation.Timeline;
+import javafx.animation.*;
 import javafx.application.Platform;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleIntegerProperty;
@@ -14,16 +12,16 @@ import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
+import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.effect.DropShadow;
+import javafx.scene.effect.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
-import javafx.scene.text.TextAlignment;
+import javafx.scene.shape.*;
+import javafx.scene.text.*;
 import javafx.util.Duration;
 
 import java.net.URI;
@@ -38,49 +36,61 @@ public class MainController {
     private static final String BACKEND   = "http://localhost:8080/api";
     private static final String ML_SERVER = "http://localhost:5000";
 
-    @FXML private VBox      rootBox;
-    @FXML private HBox      topInputArea;
-    @FXML private HBox      mainArea;
-    @FXML private Label     headerLabel;
-    @FXML private TextField cityField;
+    // ── FXML ──────────────────────────────────────────────────────
+    @FXML private VBox           rootBox;
+    @FXML private HBox           topInputArea;
+    @FXML private HBox           mainArea;
+    @FXML private Label          headerLabel;
+    @FXML private TextField      cityField;
     @FXML private ComboBox<String> modelSelector;
-    @FXML private Button    predictButton;
-    @FXML private Label     symptomsTitle;
-    @FXML private CheckBox  symptomBreath;
-    @FXML private CheckBox  symptomCough;
-    @FXML private CheckBox  symptomChest;
-    @FXML private CheckBox  symptomIrritation;
-    @FXML private CheckBox  symptomFatigue;
-    @FXML private VBox      aqiCard;
-    @FXML private Label     cityLabel;
-    @FXML private StackPane aqiCircle;
-    @FXML private Label     aqiLabel;
-    @FXML private ImageView aqiImage;
-    @FXML private Label     aqiStatus;
-    @FXML private Label     modelUsedLabel;
-    @FXML private Label     pm25Label;
-    @FXML private Label     pm10Label;
-    @FXML private VBox      adviceCard;
-    @FXML private Label     adviceTitle;
-    @FXML private Label     adviceText;
+    @FXML private Button         predictButton;
+    @FXML private Label          symptomsTitle;
+    @FXML private CheckBox       symptomBreath;
+    @FXML private CheckBox       symptomCough;
+    @FXML private CheckBox       symptomChest;
+    @FXML private CheckBox       symptomIrritation;
+    @FXML private CheckBox       symptomFatigue;
+    @FXML private VBox           aqiCard;
+    @FXML private Label          cityLabel;
+    @FXML private StackPane      aqiCircle;
+    @FXML private Label          aqiLabel;
+    @FXML private ImageView      aqiImage;
+    @FXML private Label          aqiStatus;
+    @FXML private Label          modelUsedLabel;
+    @FXML private Label          pm25Label;
+    @FXML private Label          pm10Label;
+    @FXML private VBox           adviceCard;
+    @FXML private Label          adviceTitle;
+    @FXML private Label          adviceText;
 
-    // ── NEW: risk score display labels injected programmatically ──
-    private Label riskScoreValueLabel;
-    private Label riskScoreTitleLabel;
-    private Label riskLevelLabel;
-    private StackPane riskScoreCircle;
+    // ── Dynamic widgets ───────────────────────────────────────────
+    private Label  predictedAqiLabel;
+    private Label  riskSubLabel;
+    private Label  riskOutOf;
+    private Arc    progressArc;
+    private Button backBtn;          // elevated back button (injected into rootBox)
 
-    private final HttpClient   httpClient   = HttpClient.newHttpClient();
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final IntegerProperty currentAqiValue  = new SimpleIntegerProperty(0);
+    // Symptom tile containers (for active-state toggling)
+    private VBox tileBreath, tileCough, tileChest, tileIrritation, tileFatigue;
+
+    // Direct reference to the VBox that holds advisory content (avoids getParent() cast crash)
+    private VBox adviceContentArea;
+
+    private final HttpClient   http   = HttpClient.newHttpClient();
+    private final ObjectMapper mapper = new ObjectMapper();
     private final IntegerProperty currentRiskValue = new SimpleIntegerProperty(0);
-    private Timeline aqiTimeline;
     private Timeline riskTimeline;
 
+    // ═══════════════════════════════════════════════════════════════
     @FXML
     public void initialize() {
-        buildProgrammaticUI();
-        aqiLabel.textProperty().bind(currentAqiValue.asString());
+        buildUI();
+        // Bind animated counter to label
+        currentRiskValue.addListener((obs, o, n) -> {
+            aqiLabel.setText(String.valueOf(n.intValue()));
+            double pct = n.intValue() / 100.0;
+            progressArc.setLength(-(270 * pct));
+        });
         modelSelector.getItems().addAll("XGBoost", "Random Forest", "LightGBM");
         modelSelector.getSelectionModel().selectFirst();
         setupAutoComplete();
@@ -90,16 +100,15 @@ public class MainController {
     private void wrapInScrollPane() {
         Scene scene = rootBox.getScene();
         if (scene == null) return;
-        ScrollPane scrollPane = new ScrollPane(rootBox);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        scrollPane.setStyle("-fx-background-color: #F0F4F8; -fx-background: #F0F4F8;");
-        scrollPane.skinProperty().addListener((obs, o, n) -> {
-            if (n != null) scrollPane.lookup(".viewport")
-                                     .setStyle("-fx-background-color: #F0F4F8;");
+        ScrollPane sp = new ScrollPane(rootBox);
+        sp.setFitToWidth(true);
+        sp.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        sp.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        sp.setStyle("-fx-background-color: #F0F4F8; -fx-background: #F0F4F8;");
+        sp.skinProperty().addListener((obs, o, n) -> {
+            if (n != null) sp.lookup(".viewport").setStyle("-fx-background-color: #F0F4F8;");
         });
-        scene.setRoot(scrollPane);
+        scene.setRoot(sp);
     }
 
     @FXML
@@ -108,80 +117,69 @@ public class MainController {
     }
 
     private String getSelectedModel() {
-        String selected = modelSelector.getValue();
-        if (selected == null) return "xgboost";
-        return switch (selected) {
+        String s = modelSelector.getValue();
+        if (s == null) return "xgboost";
+        return switch (s) {
             case "Random Forest" -> "randomforest";
             case "LightGBM"      -> "lightgbm";
             default              -> "xgboost";
         };
     }
 
+    // ── Predict ───────────────────────────────────────────────────
     @FXML
     private void searchCityAQI() {
         String city = cityField.getText().trim();
         if (city.isEmpty()) { showError("Please enter a city name."); return; }
-
         predictButton.setDisable(true);
         predictButton.setText("Predicting...");
         cityLabel.setText("Loading...");
-        aqiStatus.setText("...");
-        modelUsedLabel.setText("");
+        aqiStatus.setText("");
 
         new Thread(() -> {
             try {
-                String encoded = URLEncoder.encode(city, StandardCharsets.UTF_8);
-                HttpRequest aqiReq = HttpRequest.newBuilder()
-                        .uri(URI.create(BACKEND + "/aqi?city=" + encoded))
-                        .GET().build();
-                HttpResponse<String> aqiRes = httpClient.send(
-                        aqiReq, HttpResponse.BodyHandlers.ofString());
-
-                if (aqiRes.statusCode() != 200) {
+                String enc = URLEncoder.encode(city, StandardCharsets.UTF_8);
+                HttpResponse<String> r = http.send(
+                        HttpRequest.newBuilder()
+                                .uri(URI.create(BACKEND + "/aqi?city=" + enc)).GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+                if (r.statusCode() != 200) {
                     Platform.runLater(() -> showError("City not found: " + city));
-                    resetButton();
-                    return;
+                    resetButton(); return;
                 }
+                JsonNode d      = mapper.readTree(r.body());
+                int  curAqi     = d.path("aqi").asInt();
+                double pm25     = d.path("pm25").asDouble();
+                double pm10     = d.path("pm10").asDouble();
+                double no2      = d.path("no2").asDouble();
+                double o3       = d.path("o3").asDouble();
+                double co       = d.path("co").asDouble();
+                double so2      = d.path("so2").asDouble();
+                double temp     = d.path("temperature").asDouble();
+                double hum      = d.path("humidity").asDouble();
+                double wind     = d.path("windSpeed").asDouble();
+                double lat      = d.path("lat").asDouble(10.0);
+                double lon      = d.path("lon").asDouble(76.0);
+                double windDir  = d.path("windDirection").asDouble(180.0);
+                String cityName = d.path("city").asText(city);
 
-                JsonNode aqiData     = objectMapper.readTree(aqiRes.body());
-                int    currentAqi    = aqiData.path("aqi").asInt();
-                double pm25          = aqiData.path("pm25").asDouble();
-                double pm10          = aqiData.path("pm10").asDouble();
-                double no2           = aqiData.path("no2").asDouble();
-                double o3            = aqiData.path("o3").asDouble();
-                double co            = aqiData.path("co").asDouble();
-                double so2           = aqiData.path("so2").asDouble();
-                double temp          = aqiData.path("temperature").asDouble();
-                double humidity      = aqiData.path("humidity").asDouble();
-                double wind          = aqiData.path("windSpeed").asDouble();
-                double lat           = aqiData.path("lat").asDouble(10.0);
-                double lon           = aqiData.path("lon").asDouble(76.0);
-                double windDir       = aqiData.path("windDirection").asDouble(180.0);
-                String cityName      = aqiData.path("city").asText(city);
+                int[] ml       = callML(getSelectedModel(), curAqi,
+                        pm25, pm10, no2, o3, co, so2, temp, hum, wind, windDir, lat, lon);
+                int predAqi    = ml[0];
+                boolean usedML = ml[1] == 1;
 
-                int[] result      = callMLServer(getSelectedModel(), currentAqi,
-                        pm25, pm10, no2, o3, co, so2, temp, humidity, wind, windDir, lat, lon);
-                int predictedAqi  = result[0];
-                boolean usedML    = result[1] == 1;
-
-                JsonNode profile  = fetchHealthProfile();
-
-                // ── Compute risk score BEFORE building advice ──
-                int riskScore     = computeRiskScore(predictedAqi, profile);
-                String advice     = buildAdviceFromRisk(predictedAqi, riskScore, profile);
-
-                final String modelLabel = usedML
-                        ? "Predicted by: " + modelSelector.getValue()
-                        : "Predicted by: Fallback formula (ML server unavailable)";
+                JsonNode profile = fetchProfile();
+                int riskScore    = computeRiskScore(predAqi, profile);
+                String advice    = buildAdvice(predAqi, riskScore, profile);
+                String modelLbl  = usedML ? modelSelector.getValue() : "Fallback formula";
 
                 Platform.runLater(() -> {
-                    updateUI(cityName, predictedAqi, riskScore, pm25, pm10, advice, modelLabel);
+                    updateUI(cityName, predAqi, riskScore, pm25, pm10, advice, modelLbl);
                     resetButton();
                 });
-
             } catch (Exception e) {
                 e.printStackTrace();
-                Platform.runLater(() -> { showError("Error: " + e.getMessage()); resetButton(); });
+                Platform.runLater(() -> { showError(e.getMessage()); resetButton(); });
             }
         }).start();
     }
@@ -191,449 +189,755 @@ public class MainController {
         predictButton.setText("PREDICT NOW");
     }
 
-    // ── Compute risk score (extracted so UI can use it) ──────────
-    private int computeRiskScore(int predictedAqi, JsonNode profile) {
-        int score = 0;
-        if      (predictedAqi <= 50)  score += 5;
-        else if (predictedAqi <= 100) score += 15;
-        else if (predictedAqi <= 150) score += 25;
-        else if (predictedAqi <= 200) score += 35;
-        else if (predictedAqi <= 300) score += 45;
-        else                          score += 50;
+    // ── Risk score (WHO/CPCB accurate) ───────────────────────────
+    private int computeRiskScore(int aqi, JsonNode profile) {
+        double base;
+        if      (aqi <= 50)  base = 5  + (aqi / 50.0) * 5;
+        else if (aqi <= 100) base = 10 + ((aqi - 50)  / 50.0) * 15;
+        else if (aqi <= 150) base = 25 + ((aqi - 100) / 50.0) * 20;
+        else if (aqi <= 200) base = 45 + ((aqi - 150) / 50.0) * 15;
+        else if (aqi <= 300) base = 60 + ((aqi - 200) / 100.0) * 20;
+        else                 base = 80 + ((aqi - 300) / 200.0) * 20;
 
+        double m = 1.0;
         if (profile != null) {
-            int age = profile.path("age").asInt(0);
-            if (age > 60 || age < 12)                         score += 10;
-            else if (age > 45)                                score += 5;
-            if (profile.path("is_smoker").asBoolean(false))   score += 10;
-            if (profile.path("is_allergic").asBoolean(false)) score += 5;
-            if (profile.path("is_pregnant").asBoolean(false)) score += 8;
+            int age = profile.path("age").asInt(30);
+            if      (age < 5)  m += 0.40;
+            else if (age < 12) m += 0.25;
+            else if (age > 70) m += 0.35;
+            else if (age > 60) m += 0.20;
+            else if (age > 45) m += 0.08;
+            if (profile.path("is_smoker").asBoolean(false))   m += 0.30;
+            if (profile.path("is_allergic").asBoolean(false)) m += 0.15;
+            if (profile.path("is_pregnant").asBoolean(false)) m += 0.20;
             JsonNode cond = profile.path("breathing_conditions");
-            if (cond.isArray() && cond.size() > 0)            score += 10;
+            if (cond.isArray() && cond.size() > 0)            m += 0.25;
             String asthma = profile.path("asthma_breathing").asText("None");
-            if (!asthma.equals("None") && !asthma.isEmpty())  score += 8;
+            if (!asthma.equals("None") && !asthma.isEmpty())  m += 0.20;
+            m = Math.min(m, 2.5);
         }
-
-        if (symptomBreath.isSelected())     score += 8;
-        if (symptomCough.isSelected())      score += 4;
-        if (symptomChest.isSelected())      score += 8;
-        if (symptomIrritation.isSelected()) score += 3;
-        if (symptomFatigue.isSelected())    score += 4;
-
-        return Math.min(score, 100);
+        double score = base * m;
+        double af = Math.min(aqi / 100.0, 3.0);
+        if (symptomBreath.isSelected())     score += 8 * af;
+        if (symptomChest.isSelected())      score += 8 * af;
+        if (symptomCough.isSelected())      score += 4 * af;
+        if (symptomFatigue.isSelected())    score += 3 * af;
+        if (symptomIrritation.isSelected()) score += 2 * af;
+        return (int) Math.min(Math.round(score), 100);
     }
 
-    // ── Color + image + label driven by RISK SCORE ───────────────
-    private Color riskColor(int riskScore) {
-        if      (riskScore <= 20) return Color.web("#2ECC71"); // green  — LOW
-        else if (riskScore <= 40) return Color.web("#A8D700"); // lime   — MODERATE
-        else if (riskScore <= 60) return Color.web("#F1C40F"); // yellow — HIGH
-        else if (riskScore <= 80) return Color.web("#E67E22"); // orange — VERY HIGH
-        else                      return Color.web("#C0392B"); // red    — CRITICAL
+    // ── Palette helpers ───────────────────────────────────────────
+    private Color riskColor(int r) {
+        if      (r <= 20) return Color.web("#16A34A");
+        else if (r <= 40) return Color.web("#D97706");
+        else if (r <= 60) return Color.web("#EA580C");
+        else if (r <= 80) return Color.web("#7C3AED");
+        else              return Color.web("#DC2626");
     }
 
-    private String riskImage(int riskScore) {
-        if      (riskScore <= 20) return "/images/good.png";
-        else if (riskScore <= 40) return "/images/good.png";
-        else if (riskScore <= 60) return "/images/moderate.png";
-        else if (riskScore <= 80) return "/images/poor.png";
-        else                      return "/images/hazardous.png";
+    private String riskGradient(int r) {
+        if      (r <= 20) return "linear-gradient(to bottom, #DCFCE7 0%, #FFFFFF 65%)";
+        else if (r <= 40) return "linear-gradient(to bottom, #FEF3C7 0%, #FFFFFF 65%)";
+        else if (r <= 60) return "linear-gradient(to bottom, #FFEDD5 0%, #FFFFFF 65%)";
+        else if (r <= 80) return "linear-gradient(to bottom, #EDE9FE 0%, #FFFFFF 65%)";
+        else              return "linear-gradient(to bottom, #FEE2E2 0%, #FFFFFF 65%)";
     }
 
-    private String riskLevelText(int riskScore) {
-        if      (riskScore <= 20) return "LOW RISK";
-        else if (riskScore <= 40) return "MODERATE RISK";
-        else if (riskScore <= 60) return "HIGH RISK";
-        else if (riskScore <= 80) return "VERY HIGH RISK";
-        else                      return "CRITICAL RISK";
+    private String riskLevelText(int r) {
+        if      (r <= 20) return "LOW RISK";
+        else if (r <= 40) return "MODERATE RISK";
+        else if (r <= 60) return "HIGH RISK";
+        else if (r <= 80) return "VERY HIGH RISK";
+        else              return "CRITICAL RISK";
     }
 
-    /* ── UI Update ─────────────────────────────────────────────── */
-    private void updateUI(String city, int predictedAqi, int riskScore,
-                          double pm25, double pm10, String advice, String modelLabel) {
+    private String aqiText(int aqi) {
+        if      (aqi <= 50)  return "Good";
+        else if (aqi <= 100) return "Satisfactory";
+        else if (aqi <= 150) return "Moderate";
+        else if (aqi <= 200) return "Poor";
+        else if (aqi <= 300) return "Very Poor";
+        else                 return "Severe";
+    }
+
+    private String riskImage(int r) {
+        if      (r <= 20) return "/images/good.png";
+        else if (r <= 40) return "/images/moderate.png";
+        else if (r <= 60) return "/images/poor.png";
+        else if (r <= 80) return "/images/severe.png";
+        else              return "/images/hazardous.png";
+    }
+
+    private String toHex(Color c) {
+        return String.format("#%02X%02X%02X",
+                (int)(c.getRed()*255), (int)(c.getGreen()*255), (int)(c.getBlue()*255));
+    }
+
+    // ── Update UI ─────────────────────────────────────────────────
+    private void updateUI(String city, int predAqi, int riskScore,
+                          double pm25, double pm10, String advice, String modelLbl) {
+        Color rc     = riskColor(riskScore);
+        String rcHex = toHex(rc);
+
+        // City label
         cityLabel.setText(city.toUpperCase());
-        pm25Label.setText("PM2.5: " + String.format("%.1f", pm25) + " µg/m³");
-        pm10Label.setText("PM10: "  + String.format("%.1f", pm10) + " µg/m³");
-        adviceText.setText(advice);
-        modelUsedLabel.setText(modelLabel);
 
-        // ── Animate AQI counter ──
-        if (aqiTimeline != null) aqiTimeline.stop();
-        currentAqiValue.set(0);
-        aqiTimeline = new Timeline(
-                new KeyFrame(Duration.seconds(1.2), new KeyValue(currentAqiValue, predictedAqi)));
-        aqiTimeline.play();
+        // Card gradient
+        aqiCard.setStyle(
+                "-fx-background-color: " + riskGradient(riskScore) + ";" +
+                        "-fx-background-radius: 18; -fx-border-radius: 18;"
+        );
+        aqiCard.setEffect(new DropShadow(30, 0, 6,
+                Color.color(rc.getRed(), rc.getGreen(), rc.getBlue(), 0.20)));
 
-        // ── Animate risk score counter ──
+        // Arc color
+        progressArc.setStroke(rc);
+
+        // Risk number color
+        aqiLabel.setStyle(
+                "-fx-font-size: 82px; -fx-font-weight: 900; -fx-font-family: 'Segoe UI';"
+        );
+        aqiLabel.setTextFill(rc);
+
+        // Risk level
+        aqiStatus.setText(riskLevelText(riskScore));
+        aqiStatus.setTextFill(rc);
+
+        // Predicted AQI
+        predictedAqiLabel.setText("AQI  " + predAqi + "  —  " + aqiText(predAqi));
+        predictedAqiLabel.setStyle(
+                "-fx-font-size: 30px; -fx-font-weight: 700; -fx-font-family: 'Segoe UI';" +
+                        "-fx-text-fill: #1E293B;"
+        );
+
+        // Pollutants
+        pm25Label.setText("PM2.5   " + String.format("%.1f", pm25) + " µg/m³");
+        pm10Label.setText("PM10   "  + String.format("%.1f", pm10) + " µg/m³");
+
+        // Model
+        modelUsedLabel.setText("Predicted by   " + modelLbl);
+
+        // Advisory top accent bar + gradient bg
+        adviceCard.setStyle(
+                "/* gradient metallic bg */" +
+                        "-fx-background-color: linear-gradient(to bottom right, #1E293B, #0F172A);" +
+                        "-fx-background-radius: 18;" +
+                        "-fx-border-color: " + rcHex + " transparent transparent transparent;" +
+                        "-fx-border-width: 4 0 0 0;" +
+                        "-fx-border-radius: 18 18 0 0;"
+        );
+        adviceCard.setEffect(new DropShadow(24, 0, 6,
+                Color.color(rc.getRed(), rc.getGreen(), rc.getBlue(), 0.20)));
+
+        // Advisory title styled
+        adviceTitle.setStyle(
+                "-fx-font-size: 13px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI';" +
+                        "-fx-text-fill: #FFFFFF; -fx-letter-spacing: 2.5px;"
+        );
+
+        // Build advisory content
+        rebuildAdviceContent(predAqi, riskScore, advice, rc, rcHex);
+
+        // Animate counter + arc
         if (riskTimeline != null) riskTimeline.stop();
         currentRiskValue.set(0);
+        progressArc.setLength(0);
         riskTimeline = new Timeline(
-                new KeyFrame(Duration.seconds(1.2), new KeyValue(currentRiskValue, riskScore)));
+                new KeyFrame(Duration.seconds(1.4),
+                        new KeyValue(currentRiskValue, riskScore)));
         riskTimeline.play();
 
-        Color rColor = riskColor(riskScore);
-
-        // ── AQI circle: still uses AQI-based color for the AQI reading ──
-        Color aqiColor;
-        String aqiStatusText;
-        if      (predictedAqi <= 50)  { aqiColor = Color.web("#2ECC71"); aqiStatusText = "GOOD"; }
-        else if (predictedAqi <= 100) { aqiColor = Color.web("#A8D700"); aqiStatusText = "SATISFACTORY"; }
-        else if (predictedAqi <= 150) { aqiColor = Color.web("#F1C40F"); aqiStatusText = "MODERATE"; }
-        else if (predictedAqi <= 200) { aqiColor = Color.web("#E67E22"); aqiStatusText = "POOR"; }
-        else if (predictedAqi <= 300) { aqiColor = Color.web("#8E44AD"); aqiStatusText = "VERY POOR"; }
-        else                          { aqiColor = Color.web("#C0392B"); aqiStatusText = "SEVERE"; }
-
-        aqiLabel.setTextFill(aqiColor);
-        aqiStatus.setText(aqiStatusText);
-        aqiStatus.setTextFill(aqiColor);
-        aqiCircle.setBorder(new Border(new BorderStroke(aqiColor,
-                BorderStrokeStyle.SOLID, new CornerRadii(120), new BorderWidths(8))));
-
-        // ── Risk circle: driven by RISK SCORE ──
-        riskScoreValueLabel.setTextFill(rColor);
-        riskLevelLabel.setText(riskLevelText(riskScore));
-        riskLevelLabel.setTextFill(rColor);
-        riskScoreCircle.setBorder(new Border(new BorderStroke(rColor,
-                BorderStrokeStyle.SOLID, new CornerRadii(100), new BorderWidths(6))));
-
-        // ── Person image: driven by RISK SCORE ──
+        // Boy image
         try {
-            var stream = getClass().getResourceAsStream(riskImage(riskScore));
-            if (stream != null) aqiImage.setImage(new Image(stream));
-            else aqiImage.setImage(null);
-        } catch (Exception e) { aqiImage.setImage(null); }
+            var s = getClass().getResourceAsStream(riskImage(riskScore));
+            if (s != null) aqiImage.setImage(new Image(s));
+        } catch (Exception ignored) {}
     }
 
-    /* ── ML Server ─────────────────────────────────────────────── */
-    private int[] callMLServer(String modelName, int currentAqi,
-                               double pm25, double pm10, double no2, double o3,
-                               double co, double so2, double temp, double humidity,
-                               double wind, double windDirection, double lat, double lon) {
+    /** Replaces the plain adviceText label with rich VBox content */
+    private void rebuildAdviceContent(int aqi, int riskScore, String rawAdvice,
+                                      Color rc, String rcHex) {
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(0, 0, 0, 0));
+
+        // Risk badge
+        String rl   = riskLevelText(riskScore);
+        Label badge = new Label("  " + riskScore + "/100  " + rl + "  ");
+        badge.setStyle(
+                "-fx-background-color: " + rcHex + ";" +
+                        "-fx-background-radius: 6;" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 12px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI';" +
+                        "-fx-padding: 4 10 4 10;"
+        );
+        badge.setEffect(new DropShadow(8, 0, 2,
+                Color.color(rc.getRed(), rc.getGreen(), rc.getBlue(), 0.40)));
+        HBox badgeRow = new HBox(badge);
+        badgeRow.setAlignment(Pos.CENTER_LEFT);
+        content.getChildren().add(badgeRow);
+
+        // Predicted AQI section
+        addAdviceSection(content, "PREDICTED AQI (NEXT HOUR)", new String[][]{
+                {aqi <= 100 ? "✔" : aqi <= 200 ? "⚠" : "✖", aqiText(aqi) +
+                        (aqi <= 50  ? " — Air quality satisfactory." :
+                                aqi <= 100 ? " — Acceptable for most people." :
+                                        aqi <= 150 ? " — Sensitive groups may be affected." :
+                                                aqi <= 200 ? " — Health effects for everyone." :
+                                                        aqi <= 300 ? " — Avoid outdoor activity." :
+                                                                " — Emergency. Stay indoors.")}
+        }, "#CBD5E1");
+
+        // Precautions if needed
+        if (aqi > 100) {
+            String[][] prec = {
+                    {"✔", "Keep windows and doors closed."},
+                    {"✔", "Use air purifier if available."},
+                    {"✔", "Wear N95 mask when outdoors."},
+                    {"✔", "Avoid morning outdoor exercise."}
+            };
+            if (aqi > 200) {
+                prec = Arrays.copyOf(prec, prec.length + 1);
+                prec[prec.length - 1] = new String[]{"✖", "EMERGENCY: Minimize all outdoor exposure."};
+            }
+            addAdviceSection(content, "PRECAUTIONS", prec, "#94A3B8");
+        }
+
+        // Personal risk section if advice mentions it
+        if (rawAdvice.contains("PERSONAL RISK")) {
+            List<String[]> rows = new ArrayList<>();
+            if (rawAdvice.contains("Senior"))   rows.add(new String[]{"⚠", "Senior — higher respiratory sensitivity."});
+            if (rawAdvice.contains("Child"))     rows.add(new String[]{"⚠", "Child — extra caution needed."});
+            if (rawAdvice.contains("Smoker"))    rows.add(new String[]{"✖", "Smoker — significantly elevated risk."});
+            if (rawAdvice.contains("Allergic"))  rows.add(new String[]{"⚠", "Allergic — carry antihistamines + N95."});
+            if (rawAdvice.contains("Pregnant"))  rows.add(new String[]{"⚠", "Pregnant — limit outdoor exposure."});
+            if (rawAdvice.contains("Breathing")) rows.add(new String[]{"✖", "Breathing condition — keep inhaler ready."});
+            if (!rows.isEmpty())
+                addAdviceSection(content, "PERSONAL RISK FACTORS", rows.toArray(new String[0][]), "#94A3B8");
+        }
+
+        // Use adviceContentArea directly — avoids ScrollPane parent cast crash
+        adviceContentArea.getChildren().setAll(content.getChildren());
+    }
+
+    private void addAdviceSection(VBox parent, String title, String[][] rows, String textColor) {
+        Label sectionTitle = new Label(title);
+        sectionTitle.setStyle(
+                "-fx-font-size: 10px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI';" +
+                        "-fx-text-fill: #475569; -fx-letter-spacing: 1.5px;"
+        );
+        parent.getChildren().add(sectionTitle);
+
+        for (String[] row : rows) {
+            String icon = row[0];
+            String text = row[1];
+            Color iconColor = icon.equals("✖") ? Color.web("#F87171")
+                    : icon.equals("⚠") ? Color.web("#FBBF24")
+                    : Color.web("#4ADE80");
+
+            Label iconLbl = new Label(icon);
+            iconLbl.setStyle("-fx-font-size: 13px; -fx-font-weight: bold;");
+            iconLbl.setTextFill(iconColor);
+            iconLbl.setMinWidth(22);
+
+            Label textLbl = new Label(text);
+            textLbl.setStyle(
+                    "-fx-font-size: 13px; -fx-font-family: 'Segoe UI'; -fx-text-fill: " + textColor + ";"
+            );
+            textLbl.setWrapText(true);
+
+            HBox row1 = new HBox(8, iconLbl, textLbl);
+            row1.setAlignment(Pos.TOP_LEFT);
+            parent.getChildren().add(row1);
+        }
+        // spacer
+        Region spacer = new Region();
+        spacer.setPrefHeight(4);
+        parent.getChildren().add(spacer);
+    }
+
+    private void showError(String msg) {
+        cityLabel.setText("—");
+        aqiStatus.setText(msg);
+        aqiStatus.setTextFill(Color.web("#DC2626"));
+    }
+
+    // ── ML ────────────────────────────────────────────────────────
+    private int[] callML(String model, int curAqi,
+                         double pm25, double pm10, double no2, double o3,
+                         double co, double so2, double temp, double hum,
+                         double wind, double windDir, double lat, double lon) {
         try {
             LocalDateTime now = LocalDateTime.now();
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("model",            modelName);
-            payload.put("current_aqi",      currentAqi);
-            payload.put("lat",              lat);
-            payload.put("lon",              lon);
-            payload.put("pm25",             pm25);
-            payload.put("pm10",             pm10);
-            payload.put("no2",              no2);
-            payload.put("o3",               o3);
-            payload.put("co",               co);
-            payload.put("so2",              so2);
-            payload.put("temperature",      temp);
-            payload.put("relativehumidity", humidity);
-            payload.put("wind_speed",       wind);
-            payload.put("wind_direction",   windDirection);
-            payload.put("aqi_lag_1",        currentAqi);
-            payload.put("aqi_lag_2",        currentAqi);
-            payload.put("hour",             now.getHour());
-            payload.put("day_of_week",      now.getDayOfWeek().getValue() - 1);
-            payload.put("month",            now.getMonthValue());
-
-            String json = objectMapper.writeValueAsString(payload);
-            HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(ML_SERVER + "/predict"))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(json))
-                    .timeout(java.time.Duration.ofSeconds(10))
-                    .build();
-            HttpResponse<String> res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-            if (res.statusCode() == 200) {
-                JsonNode result = objectMapper.readTree(res.body());
-                return new int[]{result.path("predicted_aqi").asInt(currentAqi), 1};
-            }
-        } catch (Exception e) {
-            System.out.println("ML fallback: " + e.getMessage());
-        }
-        return new int[]{fallbackPredict(currentAqi, pm25, pm10), 0};
+            Map<String, Object> p = new HashMap<>();
+            p.put("model", model);      p.put("current_aqi", curAqi);
+            p.put("lat", lat);          p.put("lon", lon);
+            p.put("pm25", pm25);        p.put("pm10", pm10);
+            p.put("no2", no2);          p.put("o3", o3);
+            p.put("co", co);            p.put("so2", so2);
+            p.put("temperature", temp); p.put("relativehumidity", hum);
+            p.put("wind_speed", wind);  p.put("wind_direction", windDir);
+            p.put("aqi_lag_1", curAqi); p.put("aqi_lag_2", curAqi);
+            p.put("hour", now.getHour());
+            p.put("day_of_week", now.getDayOfWeek().getValue() - 1);
+            p.put("month", now.getMonthValue());
+            HttpResponse<String> res = http.send(
+                    HttpRequest.newBuilder().uri(URI.create(ML_SERVER + "/predict"))
+                            .header("Content-Type", "application/json")
+                            .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(p)))
+                            .timeout(java.time.Duration.ofSeconds(10)).build(),
+                    HttpResponse.BodyHandlers.ofString());
+            if (res.statusCode() == 200)
+                return new int[]{mapper.readTree(res.body()).path("predicted_aqi").asInt(curAqi), 1};
+        } catch (Exception e) { System.out.println("ML fallback: " + e.getMessage()); }
+        return new int[]{fallback(curAqi, pm25, pm10), 0};
     }
 
-    private int fallbackPredict(int currentAqi, double pm25, double pm10) {
-        int p = currentAqi;
+    private int fallback(int a, double pm25, double pm10) {
+        int p = a;
         if (pm25 > 150) p += 20; else if (pm25 > 80) p += 10;
         if (pm10 > 200) p += 15; else if (pm10 > 100) p += 5;
         return Math.min(p, 500);
     }
 
-    /* ── Health Profile ────────────────────────────────────────── */
-    private JsonNode fetchHealthProfile() {
+    private JsonNode fetchProfile() {
         try {
-            String userId = UserSession.getUserId();
-            if (userId == null || userId.isEmpty()) return null;
-            HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(BACKEND + "/health-profile/" + userId))
-                    .GET().build();
-            HttpResponse<String> res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-            if (res.statusCode() == 200) return objectMapper.readTree(res.body());
-        } catch (Exception e) {
-            System.out.println("Could not fetch health profile: " + e.getMessage());
-        }
+            String uid = UserSession.getUserId();
+            if (uid == null || uid.isEmpty()) return null;
+            HttpResponse<String> res = http.send(
+                    HttpRequest.newBuilder()
+                            .uri(URI.create(BACKEND + "/health-profile/" + uid)).GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            if (res.statusCode() == 200) return mapper.readTree(res.body());
+        } catch (Exception e) { System.out.println("Profile: " + e.getMessage()); }
         return null;
     }
 
-    /* ── Build advice text (risk score already computed) ────────── */
-    private String buildAdviceFromRisk(int predictedAqi, int riskScore, JsonNode profile) {
-        String riskLevel;
-        if      (riskScore <= 20) riskLevel = "LOW";
-        else if (riskScore <= 40) riskLevel = "MODERATE";
-        else if (riskScore <= 60) riskLevel = "HIGH";
-        else if (riskScore <= 80) riskLevel = "VERY HIGH";
-        else                      riskLevel = "CRITICAL";
-
-        StringBuilder advice = new StringBuilder();
-        advice.append("PREDICTED AQI (Next Hour):\n");
-        if      (predictedAqi <= 50)  advice.append("Good — Air quality is satisfactory.\n\n");
-        else if (predictedAqi <= 100) advice.append("Satisfactory — Acceptable for most people.\n\n");
-        else if (predictedAqi <= 150) advice.append("Moderate — Sensitive groups may be affected.\n\n");
-        else if (predictedAqi <= 200) advice.append("Poor — Everyone may experience health effects.\n\n");
-        else if (predictedAqi <= 300) advice.append("Very Poor — Avoid outdoor activity.\n\n");
-        else                          advice.append("Severe — Emergency conditions. Stay indoors.\n\n");
-
+    private String buildAdvice(int aqi, int risk, JsonNode profile) {
+        String rl = risk <= 20 ? "LOW" : risk <= 40 ? "MODERATE"
+                : risk <= 60 ? "HIGH" : risk <= 80 ? "VERY HIGH" : "CRITICAL";
+        StringBuilder sb = new StringBuilder();
+        sb.append("RISK SCORE  ").append(risk).append(" / 100  (").append(rl).append(")\n\n");
+        if (aqi <= 50)       sb.append("PREDICTED: Good\n");
+        else if (aqi <= 100) sb.append("PREDICTED: Satisfactory\n");
+        else if (aqi <= 150) sb.append("PREDICTED: Moderate\n");
+        else if (aqi <= 200) sb.append("PREDICTED: Poor\n");
+        else if (aqi <= 300) sb.append("PREDICTED: Very Poor\n");
+        else                 sb.append("PREDICTED: Severe\n");
         if (profile != null) {
-            advice.append("PERSONAL RISK FACTORS:\n");
+            sb.append("\nPERSONAL RISK\n");
             int age = profile.path("age").asInt(0);
-            if (age > 60) advice.append("• Senior citizen — higher respiratory sensitivity.\n");
-            if (age < 12) advice.append("• Child — extra caution needed.\n");
-            if (profile.path("is_smoker").asBoolean(false))
-                advice.append("• Smoker — significantly elevated risk.\n");
-            if (profile.path("is_allergic").asBoolean(false))
-                advice.append("• Allergic — carry antihistamines, wear N95.\n");
-            if (profile.path("is_pregnant").asBoolean(false))
-                advice.append("• Pregnant — limit outdoor exposure.\n");
+            if (age > 60) sb.append("Senior\n");
+            if (age < 12) sb.append("Child\n");
+            if (profile.path("is_smoker").asBoolean(false))   sb.append("Smoker\n");
+            if (profile.path("is_allergic").asBoolean(false)) sb.append("Allergic\n");
+            if (profile.path("is_pregnant").asBoolean(false)) sb.append("Pregnant\n");
             String asthma = profile.path("asthma_breathing").asText("None");
-            if (!asthma.equals("None") && !asthma.isEmpty())
-                advice.append("• Breathing condition — keep inhaler ready.\n");
-            advice.append("\n");
+            if (!asthma.equals("None") && !asthma.isEmpty())  sb.append("Breathing\n");
         }
-
-        boolean anySymptom = symptomBreath.isSelected() || symptomCough.isSelected() ||
-                symptomChest.isSelected() || symptomIrritation.isSelected() ||
-                symptomFatigue.isSelected();
-        if (anySymptom) {
-            advice.append("SYMPTOM MANAGEMENT:\n");
-            if (symptomBreath.isSelected())
-                advice.append(predictedAqi > 150 ? "• Breathlessness: Use inhaler. Seek help if severe.\n"
-                        : "• Breathlessness: Reduce exertion.\n");
-            if (symptomCough.isSelected())
-                advice.append(predictedAqi > 150 ? "• Cough: Run HEPA purifier.\n"
-                        : "• Cough: Wear N95 mask outdoors.\n");
-            if (symptomChest.isSelected())
-                advice.append(predictedAqi > 150 ? "• Chest pain: Consult a doctor immediately.\n"
-                        : "• Chest tightness: Rest, avoid exertion.\n");
-            if (symptomIrritation.isSelected())
-                advice.append("• Eye/throat irritation: Wash face, use eye drops.\n");
-            if (symptomFatigue.isSelected())
-                advice.append("• Fatigue: Stay hydrated, rest indoors.\n");
-            advice.append("\n");
-        }
-
-        if (predictedAqi > 100) {
-            advice.append("PRECAUTIONS:\n");
-            advice.append("• Keep windows closed.\n");
-            advice.append("• Use air purifier if available.\n");
-            advice.append("• Wear N95 mask outdoors.\n");
-            advice.append("• Avoid morning outdoor exercise.\n");
-            if (predictedAqi > 200)
-                advice.append("• EMERGENCY: Minimize all outdoor activity.\n");
-        }
-        return advice.toString();
+        return sb.toString();
     }
 
-    private void showError(String msg) {
-        cityLabel.setText("Error");
-        aqiStatus.setText(msg);
-        aqiStatus.setTextFill(Color.web("#E74C3C"));
-    }
-
-    /* ── Autocomplete ──────────────────────────────────────────── */
+    // ── Autocomplete ──────────────────────────────────────────────
     private void setupAutoComplete() {
-        ContextMenu suggestionsPopup = new ContextMenu();
-        cityField.textProperty().addListener((obs, oldVal, newVal) -> {
-            suggestionsPopup.getItems().clear();
-            if (newVal == null || newVal.length() < 2) { suggestionsPopup.hide(); return; }
+        ContextMenu popup = new ContextMenu();
+        cityField.textProperty().addListener((obs, o, newVal) -> {
+            popup.getItems().clear();
+            if (newVal == null || newVal.length() < 2) { popup.hide(); return; }
             new Thread(() -> {
                 try {
-                    String encoded = URLEncoder.encode(newVal, StandardCharsets.UTF_8);
-                    HttpRequest req = HttpRequest.newBuilder()
-                            .uri(URI.create(BACKEND + "/search?q=" + encoded))
-                            .GET().build();
-                    HttpResponse<String> res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-                    JsonNode results = objectMapper.readTree(res.body());
+                    String enc = URLEncoder.encode(newVal, StandardCharsets.UTF_8);
+                    HttpResponse<String> res = http.send(
+                            HttpRequest.newBuilder()
+                                    .uri(URI.create(BACKEND + "/search?q=" + enc)).GET().build(),
+                            HttpResponse.BodyHandlers.ofString());
+                    JsonNode results = mapper.readTree(res.body());
                     Platform.runLater(() -> {
-                        suggestionsPopup.getItems().clear();
-                        if (!results.isArray() || results.size() == 0) { suggestionsPopup.hide(); return; }
+                        popup.getItems().clear();
+                        if (!results.isArray() || results.size() == 0) { popup.hide(); return; }
                         for (JsonNode r : results) {
-                            String display = r.path("display").asText();
-                            MenuItem item = new MenuItem(display);
+                            String disp = r.path("display").asText();
+                            MenuItem item = new MenuItem(disp);
                             item.setOnAction(e -> {
-                                cityField.setText(r.path("city").asText(display));
-                                suggestionsPopup.hide();
+                                cityField.setText(r.path("city").asText(disp)); popup.hide();
                             });
-                            suggestionsPopup.getItems().add(item);
+                            popup.getItems().add(item);
                         }
-                        if (!suggestionsPopup.isShowing()
-                                && cityField.getScene() != null
-                                && cityField.getScene().getWindow() != null) {
-                            suggestionsPopup.show(cityField, Side.BOTTOM, 0, 0);
-                        }
+                        if (!popup.isShowing() && cityField.getScene() != null)
+                            popup.show(cityField, Side.BOTTOM, 0, 0);
                     });
-                } catch (Exception e) { /* no suggestions */ }
+                } catch (Exception ignored) {}
             }).start();
         });
-        cityField.focusedProperty().addListener((obs, o, n) -> { if (!n) suggestionsPopup.hide(); });
+        cityField.focusedProperty().addListener((obs, o, n) -> { if (!n) popup.hide(); });
     }
 
-    /* ── Programmatic UI Styling ───────────────────────────────── */
-    private void buildProgrammaticUI() {
+    // ═══════════════════════════════════════════════════════════════
+    //  buildUI  –  entire layout built programmatically
+    // ═══════════════════════════════════════════════════════════════
+    private void buildUI() {
+
+        // Page background
         rootBox.setBackground(new Background(new BackgroundFill(
                 Color.web("#F0F4F8"), CornerRadii.EMPTY, Insets.EMPTY)));
+        rootBox.setSpacing(20);
+        rootBox.setPadding(new Insets(24, 28, 28, 28));
 
-        // ── Top input card ──
-        topInputArea.setBackground(new Background(new BackgroundFill(
-                Color.WHITE, new CornerRadii(12), Insets.EMPTY)));
-        topInputArea.setEffect(new DropShadow(10, Color.color(0,0,0,0.05)));
-        topInputArea.setPadding(new Insets(25));
+        // ── ELEVATED BACK BUTTON ──────────────────────────────────
+        // "← Back to Dashboard" with chevron circle + hover micro-interaction
+        HBox chevronCircle = makeChevronCircle();
+        Label backText = new Label("Back to Dashboard");
+        backText.setStyle(
+                "-fx-font-size: 13px; -fx-font-family: 'Segoe UI'; -fx-text-fill: #6366F1;"
+        );
+        HBox backRow = new HBox(10, chevronCircle, backText);
+        backRow.setAlignment(Pos.CENTER_LEFT);
+        backRow.setStyle("-fx-cursor: hand;");
+        backRow.setOnMouseEntered(e -> {
+            backText.setStyle("-fx-font-size: 13px; -fx-font-family: 'Segoe UI'; " +
+                    "-fx-text-fill: #4F46E5; -fx-font-weight: bold;");
+            animateChevronLeft(chevronCircle, true);
+        });
+        backRow.setOnMouseExited(e -> {
+            backText.setStyle("-fx-font-size: 13px; -fx-font-family: 'Segoe UI'; -fx-text-fill: #6366F1;");
+            animateChevronLeft(chevronCircle, false);
+        });
+        backRow.setOnMouseClicked(e -> handleBackToDashboard());
 
-        headerLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 24));
-        headerLabel.setTextFill(Color.web("#2C3E50"));
-        symptomsTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
-        symptomsTitle.setTextFill(Color.web("#7F8C8D"));
+        // Replace any existing back button in rootBox[0] with our new one
+        // (FXML usually has a hyperlink or button at position 0)
+        if (!rootBox.getChildren().isEmpty()) {
+            rootBox.getChildren().set(0, backRow);
+        } else {
+            rootBox.getChildren().add(0, backRow);
+        }
 
-        Color checkboxColor = Color.web("#34495E");
-        symptomBreath.setTextFill(checkboxColor);
-        symptomCough.setTextFill(checkboxColor);
-        symptomChest.setTextFill(checkboxColor);
-        symptomIrritation.setTextFill(checkboxColor);
-        symptomFatigue.setTextFill(checkboxColor);
+        // ── TOP INPUT CARD — glassmorphism ────────────────────────
+        topInputArea.setStyle(
+                "-fx-background-color: rgba(255,255,255,0.94);" +
+                        "-fx-background-radius: 18; -fx-border-color: #E2E8F0;" +
+                        "-fx-border-width: 1; -fx-border-radius: 18;"
+        );
+        topInputArea.setEffect(new DropShadow(22, 0, 5, Color.color(0,0,0,0.06)));
+        topInputArea.setPadding(new Insets(28));
 
-        cityField.setStyle("-fx-background-color: #F8F9FA; -fx-border-color: #D1D5DB; " +
-                "-fx-border-radius: 4; -fx-padding: 8;");
-        modelSelector.setStyle("-fx-background-color: #F8F9FA; -fx-border-color: #D1D5DB; " +
-                "-fx-border-radius: 4;");
+        headerLabel.setStyle(
+                "-fx-font-size: 22px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI';" +
+                        "-fx-text-fill: #0F172A;"
+        );
 
-        predictButton.setBackground(new Background(new BackgroundFill(
-                Color.web("#3498DB"), new CornerRadii(6), Insets.EMPTY)));
-        predictButton.setTextFill(Color.WHITE);
-        predictButton.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
-        predictButton.setPadding(new Insets(12));
-        predictButton.setOnMouseEntered(e -> predictButton.setBackground(new Background(
-                new BackgroundFill(Color.web("#2980B9"), new CornerRadii(6), Insets.EMPTY))));
-        predictButton.setOnMouseExited(e -> predictButton.setBackground(new Background(
-                new BackgroundFill(Color.web("#3498DB"), new CornerRadii(6), Insets.EMPTY))));
+        // Input fields
+        cityField.setStyle(
+                "-fx-background-color: #F8FAFC; -fx-border-color: #E2E8F0;" +
+                        "-fx-border-radius: 8; -fx-background-radius: 8;" +
+                        "-fx-padding: 10 14 10 14; -fx-font-size: 14px; -fx-text-fill: #1E293B;" +
+                        "-fx-prompt-text-fill: #94A3B8;"
+        );
+        modelSelector.setStyle(
+                "-fx-background-color: #F8FAFC; -fx-border-color: #E2E8F0;" +
+                        "-fx-border-radius: 8; -fx-background-radius: 8; -fx-font-size: 14px;"
+        );
 
-        // ── AQI card ──
-        aqiCard.setBackground(new Background(new BackgroundFill(
-                Color.WHITE, new CornerRadii(12), Insets.EMPTY)));
-        aqiCard.setEffect(new DropShadow(10, Color.color(0,0,0,0.05)));
-        aqiCard.setPadding(new Insets(30));
+        // Predict button — indigo
+        String btnBase =
+                "-fx-background-color: #6366F1; -fx-background-radius: 10;" +
+                        "-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;" +
+                        "-fx-cursor: hand; -fx-padding: 13 0 13 0;" +
+                        "-fx-effect: dropshadow(gaussian, rgba(99,102,241,0.40), 12, 0, 0, 5);";
+        String btnHov =
+                "-fx-background-color: #4F46E5; -fx-background-radius: 10;" +
+                        "-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;" +
+                        "-fx-cursor: hand; -fx-padding: 13 0 13 0;" +
+                        "-fx-effect: dropshadow(gaussian, rgba(79,70,229,0.55), 16, 0, 0, 6);";
+        predictButton.setStyle(btnBase);
+        predictButton.setOnMouseEntered(e -> predictButton.setStyle(btnHov));
+        predictButton.setOnMouseExited(e  -> predictButton.setStyle(btnBase));
 
-        cityLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 36));
-        cityLabel.setTextFill(Color.web("#2C3E50"));
-        aqiLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 72));
-        aqiLabel.setTextFill(Color.web("#BDC3C7"));
-        aqiStatus.setFont(Font.font("Segoe UI", FontWeight.BOLD, 22));
-        aqiStatus.setTextFill(Color.web("#7F8C8D"));
-        pm25Label.setFont(Font.font("Segoe UI", 16));
-        pm25Label.setTextFill(Color.web("#7F8C8D"));
-        pm10Label.setFont(Font.font("Segoe UI", 16));
-        pm10Label.setTextFill(Color.web("#7F8C8D"));
+        // ── SYMPTOM TILES (replacing old chips) ───────────────────
+        symptomsTitle.setStyle(
+                "-fx-font-size: 12px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI';" +
+                        "-fx-text-fill: #64748B; -fx-letter-spacing: 1px;"
+        );
 
-        aqiCircle.setBackground(new Background(new BackgroundFill(
-                Color.WHITE, new CornerRadii(120), Insets.EMPTY)));
-        aqiCircle.setBorder(new Border(new BorderStroke(
-                Color.web("#E0E0E0"), BorderStrokeStyle.SOLID,
-                new CornerRadii(120), new BorderWidths(8))));
-        aqiCircle.setEffect(new DropShadow(15, Color.color(0,0,0,0.08)));
+        tileBreath     = makeSymptomTile(symptomBreath,    "🫁", "Shortness\nof Breath");
+        tileCough      = makeSymptomTile(symptomCough,     "🤧", "Cough /\nWheezing");
+        tileChest      = makeSymptomTile(symptomChest,     "💔", "Chest\nTightness");
+        tileIrritation = makeSymptomTile(symptomIrritation,"👁", "Eye / Throat\nIrritation");
+        tileFatigue    = makeSymptomTile(symptomFatigue,   "😴", "Headache /\nFatigue");
 
-        // ── BUILD RISK SCORE CIRCLE and inject into aqiCard ──
-        buildRiskScoreWidget();
+        // Find symptom row in topInputArea and replace children
+        // The FXML symptoms section is in a child container — we rebuild it
+        rebuildSymptomSection();
 
-        // ── Advice card ──
-        adviceCard.setBackground(new Background(new BackgroundFill(
-                Color.web("#2C3E50"), new CornerRadii(12), Insets.EMPTY)));
-        adviceCard.setEffect(new DropShadow(15, Color.color(0,0,0,0.1)));
-        adviceCard.setPadding(new Insets(30));
-        adviceTitle.setFont(Font.font("Georgia", FontWeight.BOLD, 20));
-        adviceTitle.setTextFill(Color.web("#3498DB"));
-        adviceText.setFont(Font.font("Verdana", FontWeight.NORMAL, 14));
-        adviceText.setTextFill(Color.WHITE);
-        adviceText.setTextAlignment(TextAlignment.LEFT);
+        // ── RESULT CARD ───────────────────────────────────────────
+        aqiCard.setStyle(
+                "-fx-background-color: white; -fx-background-radius: 18; -fx-border-radius: 18;");
+        aqiCard.setEffect(new DropShadow(18, 0, 5, Color.color(0,0,0,0.07)));
+        aqiCard.setPadding(new Insets(36));
+        aqiCard.setAlignment(Pos.CENTER);
+        aqiCard.setSpacing(14);
+
+        // City label — wider letter spacing
+        cityLabel.setStyle(
+                "-fx-font-size: 30px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI';" +
+                        "-fx-text-fill: #0F172A; -fx-letter-spacing: 4px;"
+        );
+        cityLabel.setMaxWidth(Double.MAX_VALUE);
+        cityLabel.setAlignment(Pos.CENTER);
+
+        // ── Arc progress ring ──
+        double R  = 108;
+        double SW = 10;
+
+        Circle track = new Circle(R);
+        track.setFill(Color.TRANSPARENT);
+        track.setStroke(Color.web("#E2E8F0"));
+        track.setStrokeWidth(SW);
+
+        progressArc = new Arc(0, 0, R, R, 225, 0);
+        progressArc.setType(ArcType.OPEN);
+        progressArc.setFill(Color.TRANSPARENT);
+        progressArc.setStroke(Color.web("#6366F1"));
+        progressArc.setStrokeWidth(SW + 1);
+        progressArc.setStrokeLineCap(StrokeLineCap.ROUND);
+
+        Circle inner = new Circle(R - SW / 2.0);
+        inner.setFill(Color.WHITE);
+
+        riskSubLabel = new Label("RISK SCORE");
+        riskSubLabel.setStyle(
+                "-fx-font-size: 11px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI';" +
+                        "-fx-text-fill: #94A3B8; -fx-letter-spacing: 2px;"
+        );
+        aqiLabel.setText("—");
+        aqiLabel.setStyle(
+                "-fx-font-size: 82px; -fx-font-weight: 900; -fx-font-family: 'Segoe UI';" +
+                        "-fx-text-fill: #CBD5E1;"
+        );
+        riskOutOf = new Label("/ 100");
+        riskOutOf.setStyle(
+                "-fx-font-size: 13px; -fx-text-fill: #94A3B8; -fx-font-family: 'Segoe UI';"
+        );
+
+        VBox ringContent = new VBox(-4);
+        ringContent.setAlignment(Pos.CENTER);
+        ringContent.getChildren().addAll(riskSubLabel, aqiLabel, riskOutOf);
+
+        StackPane ring = new StackPane(new Group(track, progressArc), inner, ringContent);
+        ring.setPrefSize(R * 2 + 22, R * 2 + 22);
+        ring.setMaxSize(R * 2 + 22, R * 2 + 22);
+        ring.setAlignment(Pos.CENTER);
+        ring.setEffect(new DropShadow(20, 0, 4, Color.color(0,0,0,0.09)));
+
+        aqiCircle.getChildren().clear();
+        aqiCircle.getChildren().add(ring);
+        aqiCircle.setPrefSize(R * 2 + 22, R * 2 + 22);
+        aqiCircle.setMaxSize(R * 2 + 22, R * 2 + 22);
+        aqiCircle.setBackground(Background.EMPTY);
+
+        // Risk level text
+        aqiStatus.setStyle(
+                "-fx-font-size: 17px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI';" +
+                        "-fx-text-fill: #94A3B8; -fx-letter-spacing: 1.5px;"
+        );
+
+        // Predicted AQI large label
+        predictedAqiLabel = new Label("—");
+        predictedAqiLabel.setStyle(
+                "-fx-font-size: 30px; -fx-font-weight: 700; -fx-font-family: 'Segoe UI';" +
+                        "-fx-text-fill: #1E293B;"
+        );
+
+        // Pollutant pills
+        String pillStyle =
+                "-fx-font-size: 13px; -fx-font-family: 'Segoe UI'; -fx-text-fill: #64748B;" +
+                        "-fx-background-color: #F1F5F9; -fx-background-radius: 8; -fx-padding: 5 14 5 14;";
+        pm25Label.setStyle(pillStyle);
+        pm10Label.setStyle(pillStyle);
+
+        HBox pmRow = new HBox(12, pm25Label, pm10Label);
+        pmRow.setAlignment(Pos.CENTER);
+
+        modelUsedLabel.setStyle(
+                "-fx-font-size: 11px; -fx-text-fill: #94A3B8;" +
+                        "-fx-font-style: italic; -fx-font-family: 'Segoe UI';"
+        );
+
+        // Left column: ring + labels
+        VBox leftCol = new VBox(12);
+        leftCol.setAlignment(Pos.CENTER);
+        leftCol.getChildren().addAll(aqiCircle, aqiStatus, predictedAqiLabel, pmRow, modelUsedLabel);
+
+        // Boy image — larger, right side
+        aqiImage.setFitHeight(215);
+        aqiImage.setFitWidth(215);
+        aqiImage.setPreserveRatio(true);
+
+        HBox centerRow = new HBox(55, leftCol, aqiImage);
+        centerRow.setAlignment(Pos.CENTER);
+
+        aqiCard.getChildren().clear();
+        aqiCard.getChildren().addAll(cityLabel, centerRow);
+
+        // ── ADVISORY CARD — metallic gradient ────────────────────
+        adviceCard.setStyle(
+                "-fx-background-color: linear-gradient(to bottom right, #1E293B 0%, #0F172A 100%);" +
+                        "-fx-background-radius: 18;" +
+                        "-fx-border-color: #6366F1 transparent transparent transparent;" +
+                        "-fx-border-width: 4 0 0 0;" +
+                        "-fx-border-radius: 18 18 0 0;"
+        );
+        adviceCard.setEffect(new DropShadow(22, 0, 5, Color.color(0,0,0,0.18)));
+        adviceCard.setPadding(new Insets(28));
+        adviceCard.setSpacing(12);
+
+        adviceTitle.setStyle(
+                "-fx-font-size: 13px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI';" +
+                        "-fx-text-fill: #FFFFFF; -fx-letter-spacing: 2.5px;"
+        );
+        // adviceContentArea is our stable container for dynamic advisory content.
+        // Using adviceText.getParent() after wrapInScrollPane() causes a ClassCastException
+        // because the parent becomes a ScrollPaneSkin internal node, not a VBox.
+        adviceContentArea = new VBox(8);
+        adviceContentArea.setFillWidth(true);
+        Label placeholder = new Label("Run a prediction to see your personalised advisory.");
+        placeholder.setStyle(
+                "-fx-font-size: 13px; -fx-font-family: 'Segoe UI';" +
+                        "-fx-text-fill: #475569; -fx-font-style: italic;"
+        );
+        adviceContentArea.getChildren().add(placeholder);
+        // Remove the FXML adviceText label and replace with our content area
+        adviceCard.getChildren().remove(adviceText);
+        if (!adviceCard.getChildren().contains(adviceContentArea)) {
+            adviceCard.getChildren().add(adviceContentArea);
+        }
     }
 
-    /**
-     * Builds the risk score circle widget and inserts it into aqiCard
-     * right after the AQI circle, side by side.
-     *
-     * Layout added to aqiCard:
-     *   HBox [ AQI circle | spacer | Risk circle ]
-     *   HBox [ AQI status label  | Risk level label ]
-     */
-    private void buildRiskScoreWidget() {
-        // ── Risk score circle ──
-        riskScoreCircle = new StackPane();
-        riskScoreCircle.setPrefSize(180, 180);
-        riskScoreCircle.setMaxSize(180, 180);
-        riskScoreCircle.setBackground(new Background(new BackgroundFill(
-                Color.WHITE, new CornerRadii(90), Insets.EMPTY)));
-        riskScoreCircle.setBorder(new Border(new BorderStroke(
-                Color.web("#E0E0E0"), BorderStrokeStyle.SOLID,
-                new CornerRadii(90), new BorderWidths(6))));
-        riskScoreCircle.setEffect(new DropShadow(15, Color.color(0,0,0,0.08)));
+    // ── Back button helpers ───────────────────────────────────────
+    private HBox makeChevronCircle() {
+        Label chevron = new Label("‹");
+        chevron.setStyle(
+                "-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #6366F1;" +
+                        "-fx-font-family: 'Segoe UI';"
+        );
+        StackPane circle = new StackPane(chevron);
+        circle.setPrefSize(32, 32);
+        circle.setMaxSize(32, 32);
+        circle.setStyle(
+                "-fx-background-color: rgba(99,102,241,0.10);" +
+                        "-fx-background-radius: 16;"
+        );
+        HBox box = new HBox(circle);
+        box.setAlignment(Pos.CENTER);
+        return box;
+    }
 
-        VBox riskInner = new VBox(0);
-        riskInner.setAlignment(Pos.CENTER);
+    private void animateChevronLeft(HBox chevronContainer, boolean enter) {
+        StackPane circle = (StackPane) chevronContainer.getChildren().get(0);
+        TranslateTransition tt = new TranslateTransition(Duration.millis(160), circle);
+        tt.setToX(enter ? -3 : 0);
+        tt.play();
+        circle.setStyle(
+                (enter
+                        ? "-fx-background-color: rgba(99,102,241,0.20);"
+                        : "-fx-background-color: rgba(99,102,241,0.10);") +
+                        "-fx-background-radius: 16;"
+        );
+    }
 
-        riskScoreTitleLabel = new Label("RISK");
-        riskScoreTitleLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 13));
-        riskScoreTitleLabel.setTextFill(Color.web("#8e9bb0"));
+    // ── Symptom tile builder ──────────────────────────────────────
+    private VBox makeSymptomTile(CheckBox cb, String icon, String label) {
+        Label iconLbl = new Label(icon);
+        iconLbl.setStyle("-fx-font-size: 26px;");
 
-        riskScoreValueLabel = new Label("0");
-        riskScoreValueLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 52));
-        riskScoreValueLabel.setTextFill(Color.web("#BDC3C7"));
-        currentRiskValue.addListener((obs, o, n) ->
-                riskScoreValueLabel.setText(String.valueOf(n.intValue())));
+        Label nameLbl = new Label(label);
+        nameLbl.setStyle(
+                "-fx-font-size: 12px; -fx-font-family: 'Segoe UI'; -fx-text-fill: #475569;" +
+                        "-fx-text-alignment: center; -fx-alignment: center;"
+        );
+        nameLbl.setTextAlignment(TextAlignment.CENTER);
+        nameLbl.setWrapText(true);
+        nameLbl.setMaxWidth(90);
 
-        Label riskOutOf = new Label("/100");
-        riskOutOf.setFont(Font.font("Segoe UI", 13));
-        riskOutOf.setTextFill(Color.web("#8e9bb0"));
+        VBox tile = new VBox(8, iconLbl, nameLbl);
+        tile.setAlignment(Pos.CENTER);
+        tile.setPrefSize(100, 90);
+        tile.setMaxSize(100, 90);
+        tile.setStyle(tileStyleInactive());
+        tile.setOnMouseClicked(e -> {
+            cb.setSelected(!cb.isSelected());
+            tile.setStyle(cb.isSelected() ? tileStyleActive() : tileStyleInactive());
+        });
+        tile.setOnMouseEntered(e -> {
+            if (!cb.isSelected())
+                tile.setStyle(tileStyleHover());
+        });
+        tile.setOnMouseExited(e -> {
+            if (!cb.isSelected())
+                tile.setStyle(tileStyleInactive());
+        });
+        cb.selectedProperty().addListener((obs, o, n) ->
+                tile.setStyle(n ? tileStyleActive() : tileStyleInactive()));
+        return tile;
+    }
 
-        riskInner.getChildren().addAll(riskScoreTitleLabel, riskScoreValueLabel, riskOutOf);
-        riskScoreCircle.getChildren().add(riskInner);
+    private String tileStyleInactive() {
+        return "-fx-background-color: #F8FAFC; -fx-background-radius: 14;" +
+                "-fx-border-color: #E2E8F0; -fx-border-radius: 14; -fx-border-width: 1.5;" +
+                "-fx-cursor: hand;";
+    }
+    private String tileStyleHover() {
+        return "-fx-background-color: #EEF2FF; -fx-background-radius: 14;" +
+                "-fx-border-color: #A5B4FC; -fx-border-radius: 14; -fx-border-width: 1.5;" +
+                "-fx-cursor: hand;" +
+                "-fx-effect: dropshadow(gaussian, rgba(99,102,241,0.15), 8, 0, 0, 2);";
+    }
+    private String tileStyleActive() {
+        return "-fx-background-color: #EEF2FF; -fx-background-radius: 14;" +
+                "-fx-border-color: #6366F1; -fx-border-radius: 14; -fx-border-width: 2;" +
+                "-fx-cursor: hand;" +
+                "-fx-effect: dropshadow(gaussian, rgba(99,102,241,0.30), 12, 0, 0, 3);";
+    }
 
-        riskLevelLabel = new Label("AWAITING");
-        riskLevelLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
-        riskLevelLabel.setTextFill(Color.web("#7F8C8D"));
+    /** Replaces the symptom HBox inside topInputArea with rich tiles */
+    private void rebuildSymptomSection() {
+        // Find the right-side VBox in topInputArea (child index 1 typically)
+        for (javafx.scene.Node node : topInputArea.getChildren()) {
+            if (node instanceof VBox vbox) {
+                // Look for the symptoms container (has symptomsTitle as a child)
+                for (javafx.scene.Node inner : new ArrayList<>(vbox.getChildren())) {
+                    if (inner instanceof HBox hbox) {
+                        // Check if it contains checkboxes (old symptom row)
+                        boolean hasCheckbox = hbox.getChildren().stream()
+                                .anyMatch(n -> n instanceof CheckBox);
+                        if (hasCheckbox) {
+                            int idx = vbox.getChildren().indexOf(hbox);
+                            // Replace with tiles row + hint text
+                            HBox tilesRow = new HBox(12,
+                                    tileBreath, tileCough, tileChest,
+                                    tileIrritation, tileFatigue);
+                            tilesRow.setAlignment(Pos.CENTER_LEFT);
 
-        // ── Find where aqiCircle is in aqiCard and insert new layout ──
-        // Remove aqiCircle and aqiStatus from their current positions,
-        // wrap them with the risk widgets side by side.
-        aqiCard.getChildren().remove(aqiCircle);
-        aqiCard.getChildren().remove(aqiStatus);
+                            Label hint = new Label(
+                                    "Select all symptoms that apply to refine your medical advisory.");
+                            hint.setStyle(
+                                    "-fx-font-size: 11px; -fx-font-family: 'Segoe UI';" +
+                                            "-fx-text-fill: #94A3B8; -fx-font-style: italic;"
+                            );
 
-        // Side-by-side: [AQI circle]  [Risk circle]
-        HBox circlesRow = new HBox(40);
-        circlesRow.setAlignment(Pos.CENTER);
+                            VBox sympSection = new VBox(10);
+                            sympSection.getChildren().addAll(tilesRow, hint);
 
-        VBox aqiCircleBox = new VBox(8);
-        aqiCircleBox.setAlignment(Pos.CENTER);
-        Label aqiCircleTitle = new Label("PREDICTED AQI");
-        aqiCircleTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 13));
-        aqiCircleTitle.setTextFill(Color.web("#8e9bb0"));
-        aqiCircleBox.getChildren().addAll(aqiCircleTitle, aqiCircle, aqiStatus);
-
-        VBox riskCircleBox = new VBox(8);
-        riskCircleBox.setAlignment(Pos.CENTER);
-        Label riskCircleTitle = new Label("HEALTH RISK");
-        riskCircleTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 13));
-        riskCircleTitle.setTextFill(Color.web("#8e9bb0"));
-        riskCircleBox.getChildren().addAll(riskCircleTitle, riskScoreCircle, riskLevelLabel);
-
-        circlesRow.getChildren().addAll(aqiCircleBox, riskCircleBox);
-
-        // Insert the circles row after cityLabel (index 1)
-        int insertIdx = aqiCard.getChildren().indexOf(cityLabel) + 1;
-        aqiCard.getChildren().add(insertIdx, circlesRow);
+                            vbox.getChildren().set(idx, sympSection);
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+        // Fallback: just append tiles at the end of topInputArea
+        HBox tilesRow = new HBox(12,
+                tileBreath, tileCough, tileChest, tileIrritation, tileFatigue);
+        tilesRow.setAlignment(Pos.CENTER_LEFT);
+        topInputArea.getChildren().add(tilesRow);
     }
 }
