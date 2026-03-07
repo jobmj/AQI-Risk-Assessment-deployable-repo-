@@ -85,6 +85,8 @@ public class AqiService {
         double temp      = weatherRoot.path("main").path("temp").asDouble();
         double humidity  = weatherRoot.path("main").path("humidity").asDouble();
         double windSpeed = weatherRoot.path("wind").path("speed").asDouble() * 3.6; // m/s → km/h
+        double windDirection = weatherRoot.path("wind").path("deg").asDouble(180);
+
 
         System.out.println("=== Weather: temp=" + temp + " humidity=" + humidity + " wind=" + windSpeed);
 
@@ -138,6 +140,11 @@ public class AqiService {
         result.put("windSpeed",   windSpeed);
         result.put("subIndices",  subIndices);
         result.put("standard",    "CPCB India");
+
+        // In the result map, add:
+        result.put("windDirection", windDirection);
+        result.put("lat", lat);
+        result.put("lon", lon);
         return result;
     }
 

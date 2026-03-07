@@ -1,89 +1,126 @@
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 from flask import Flask, request, jsonify
 import joblib
-import numpy as np
+import pandas as pd
 import os
 from datetime import datetime
 
 app = Flask(__name__)
 
-# Load the best model (XGBoost)
-MODEL_PATH = os.path.join(os.path.dirname(__file__), 'models', 'xgboost_model.pkl')
-model = joblib.load(MODEL_PATH)
-print(f"Model loaded from: {MODEL_PATH}")
+MODEL_DIR = os.path.join(os.path.dirname(__file__), 'models')
+
+models = {}
+model_files = {
+    "xgboost":      "xgboost_model.pkl",
+    "randomforest": "randomforest_model.pkl",
+    "lightgbm":     "lightgbm_model.pkl"
+}
+
+for name, filename in model_files.items():
+    path = os.path.join(MODEL_DIR, filename)
+    if os.path.exists(path):
+        models[name] = joblib.load(path)
+        print(f"[OK] Loaded model: {name} from {path}")
+    else:
+        print(f"[MISSING] Model not found: {path}")
+
+# Each model has its own feature set matching training
+FEATURES = {
+    "randomforest": [
+        'co', 'no', 'no2', 'o3',
+        'pm10', 'pm25',
+        'temperature', 'relativehumidity',
+        'wind_speed', 'wind_direction',
+        'hour',
+        'aqi_lag_1', 'aqi_lag_2'
+    ],
+    "xgboost": [
+        'co', 'no', 'no2', 'nox', 'o3',
+        'pm10', 'pm25', 'so2',
+        'temperature', 'relativehumidity',
+        'wind_speed', 'wind_direction',
+        'hour', 'day_of_week', 'month',
+        'aqi_lag_1', 'aqi_lag_2'
+    ],
+    "lightgbm": [
+        'co', 'no', 'no2', 'nox', 'o3',
+        'pm10', 'pm25', 'so2',
+        'temperature', 'relativehumidity',
+        'wind_speed', 'wind_direction',
+        'hour', 'day_of_week', 'month',
+        'aqi_lag_1', 'aqi_lag_2'
+    ]
+}
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    """
-    Expects JSON:
-    {
-        "co": 200.5,
-        "no": 1.2,
-        "no2": 15.3,
-        "nox": 16.5,
-        "o3": 40.1,
-        "pm10": 60.2,
-        "pm25": 35.1,
-        "so2": 5.0,
-        "temperature": 28.5,
-        "relativehumidity": 75.0,
-        "wind_speed": 10.5,
-        "wind_direction": 180.0,
-        "aqi_lag_1": 138,
-        "aqi_lag_2": 130
-    }
-    Returns:
-    {
-        "predicted_aqi": 145,
-        "hour": 15,
-        "model": "xgboost"
-    }
-    """
     try:
         data = request.get_json()
 
+        model_name = data.get('model', 'xgboost').lower()
+        if model_name not in models:
+            return jsonify({"error": f"Model '{model_name}' not loaded. Available: {list(models.keys())}"}), 400
+
+        model = models[model_name]
+        feature_cols = FEATURES[model_name]
+
         now = datetime.now()
-        hour        = data.get('hour',          now.hour)
-        day_of_week = data.get('day_of_week',   now.weekday())
-        month       = data.get('month',         now.month)
+        hour        = data.get('hour',        now.hour)
+        day_of_week = data.get('day_of_week', now.weekday())
+        month       = data.get('month',       now.month)
+        current_aqi = data.get('current_aqi', 100)
 
-        # Feature order must match training
-        features = np.array([[
-            data.get('co',               0.0),
-            data.get('no',               0.0),
-            data.get('no2',              0.0),
-            data.get('nox',              0.0),
-            data.get('o3',               0.0),
-            data.get('pm10',             0.0),
-            data.get('pm25',             0.0),
-            data.get('so2',              0.0),
-            data.get('temperature',      25.0),
-            data.get('relativehumidity', 60.0),
-            data.get('wind_speed',       5.0),
-            data.get('wind_direction',   180.0),
-            hour,
-            day_of_week,
-            month,
-            data.get('aqi_lag_1',        data.get('current_aqi', 100)),
-            data.get('aqi_lag_2',        data.get('current_aqi', 100)),
-        ]])
+        # All possible values — each model picks only what it needs
+        all_values = {
+            'co':               data.get('co',               0.0),
+            'no':               data.get('no',               0.0),
+            'no2':              data.get('no2',              0.0),
+            'nox':              data.get('nox', data.get('no2', 0.0)),
+            'o3':               data.get('o3',               0.0),
+            'pm10':             data.get('pm10',             0.0),
+            'pm25':             data.get('pm25',             0.0),
+            'so2':              data.get('so2',              0.0),
+            'temperature':      data.get('temperature',      25.0),
+            'relativehumidity': data.get('relativehumidity', 60.0),
+            'wind_speed':       data.get('wind_speed',       5.0),
+            'wind_direction':   data.get('wind_direction',   180.0),
+            'hour':             hour,
+            'day_of_week':      day_of_week,
+            'month':            month,
+            'aqi_lag_1':        data.get('aqi_lag_1', current_aqi),
+            'aqi_lag_2':        data.get('aqi_lag_2', current_aqi),
+        }
 
-        predicted = model.predict(features)[0]
+        # Build DataFrame with only the features this model needs
+        row = {col: all_values[col] for col in feature_cols}
+        features_df = pd.DataFrame([row], columns=feature_cols)
+
+        predicted = model.predict(features_df)[0]
         predicted_aqi = max(0, int(round(predicted)))
 
         return jsonify({
             "predicted_aqi": predicted_aqi,
-            "hour": hour,
-            "model": "xgboost"
+            "model": model_name,
+            "hour": hour
         })
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/models', methods=['GET'])
+def list_models():
+    return jsonify({"available_models": list(models.keys())})
+
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({"status": "UP", "model": "xgboost"})
-
+    return jsonify({"status": "UP", "loaded_models": list(models.keys())})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)

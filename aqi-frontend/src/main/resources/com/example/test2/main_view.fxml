@@ -30,6 +30,11 @@
             <Separator/>
             <Label text="Select Location" textFill="#8e9bb0"/>
             <TextField fx:id="cityField" promptText="Enter city (Delhi, Kochi...)" maxWidth="Infinity"/>
+
+            <!-- Model selector -->
+            <Label text="Prediction Model" textFill="#8e9bb0"/>
+            <ComboBox fx:id="modelSelector" maxWidth="Infinity"/>
+
             <Button fx:id="predictButton" text="PREDICT NOW" maxWidth="Infinity" onAction="#searchCityAQI"/>
         </VBox>
 
@@ -64,6 +69,10 @@
             <ImageView fx:id="aqiImage" fitHeight="120" fitWidth="120" preserveRatio="true"/>
 
             <Label fx:id="aqiStatus" text="STATUS"/>
+
+            <!-- Model used label -->
+            <Label fx:id="modelUsedLabel"
+                   style="-fx-font-size: 11px; -fx-text-fill: #aaaaaa; -fx-font-style: italic;"/>
 
             <HBox spacing="40" alignment="CENTER">
                 <Label fx:id="pm25Label" text="PM2.5: --"/>
