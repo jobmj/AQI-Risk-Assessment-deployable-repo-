@@ -36,7 +36,6 @@ public class MainController {
     private static final String BACKEND   = "http://localhost:8080/api";
     private static final String ML_SERVER = "http://localhost:5000";
 
-    /* ── FXML Controls ─────────────────────────────────────────── */
     @FXML private VBox      rootBox;
     @FXML private HBox      topInputArea;
     @FXML private HBox      mainArea;
@@ -68,24 +67,20 @@ public class MainController {
     private final IntegerProperty currentAqiValue = new SimpleIntegerProperty(0);
     private Timeline aqiTimeline;
 
-    /* ── Initialize ────────────────────────────────────────────── */
     @FXML
     public void initialize() {
         buildProgrammaticUI();
         aqiLabel.textProperty().bind(currentAqiValue.asString());
         modelSelector.getItems().addAll("XGBoost", "Random Forest", "LightGBM");
         modelSelector.getSelectionModel().selectFirst();
-
         setupAutoComplete();
     }
 
-    /* ── Navigation ────────────────────────────────────────────── */
     @FXML
     private void handleBackToDashboard() {
         SceneManager.switchScene("/com/example/aqidashboard/dashboard-view.fxml", "Dashboard");
     }
 
-    /* ── Get selected model key for Flask ──────────────────────── */
     private String getSelectedModel() {
         String selected = modelSelector.getValue();
         if (selected == null) return "xgboost";
@@ -96,14 +91,10 @@ public class MainController {
         };
     }
 
-    /* ── Main Predict Action ───────────────────────────────────── */
     @FXML
     private void searchCityAQI() {
         String city = cityField.getText().trim();
-        if (city.isEmpty()) {
-            showError("Please enter a city name.");
-            return;
-        }
+        if (city.isEmpty()) { showError("Please enter a city name."); return; }
 
         predictButton.setDisable(true);
         predictButton.setText("Predicting...");
@@ -113,7 +104,6 @@ public class MainController {
 
         new Thread(() -> {
             try {
-                // Step 1: Fetch current real AQI from backend
                 String encoded = URLEncoder.encode(city, StandardCharsets.UTF_8);
                 HttpRequest aqiReq = HttpRequest.newBuilder()
                         .uri(URI.create(BACKEND + "/aqi?city=" + encoded))
@@ -127,33 +117,32 @@ public class MainController {
                     return;
                 }
 
-                JsonNode aqiData  = objectMapper.readTree(aqiRes.body());
-                int    currentAqi = aqiData.path("aqi").asInt();
-                double pm25       = aqiData.path("pm25").asDouble();
-                double pm10       = aqiData.path("pm10").asDouble();
-                double no2        = aqiData.path("no2").asDouble();
-                double o3         = aqiData.path("o3").asDouble();
-                double co         = aqiData.path("co").asDouble();
-                double so2        = aqiData.path("so2").asDouble();
-                double temp       = aqiData.path("temperature").asDouble();
-                double humidity   = aqiData.path("humidity").asDouble();
-                double wind       = aqiData.path("windSpeed").asDouble();
-                String cityName   = aqiData.path("city").asText(city);
+                JsonNode aqiData      = objectMapper.readTree(aqiRes.body());
+                int    currentAqi     = aqiData.path("aqi").asInt();
+                double pm25           = aqiData.path("pm25").asDouble();
+                double pm10           = aqiData.path("pm10").asDouble();
+                double no2            = aqiData.path("no2").asDouble();
+                double o3             = aqiData.path("o3").asDouble();
+                double co             = aqiData.path("co").asDouble();
+                double so2            = aqiData.path("so2").asDouble();
+                double temp           = aqiData.path("temperature").asDouble();
+                double humidity       = aqiData.path("humidity").asDouble();
+                double wind           = aqiData.path("windSpeed").asDouble();
+                double lat            = aqiData.path("lat").asDouble(10.0);
+                double lon            = aqiData.path("lon").asDouble(76.0);
+                double windDirection  = aqiData.path("windDirection").asDouble(180.0);
+                String cityName       = aqiData.path("city").asText(city);
 
-                // Step 2: Call ML server with selected model
                 String selectedModel = getSelectedModel();
-                int[] result = callMLServer(selectedModel, currentAqi, pm25, pm10,
-                                            no2, o3, co, so2, temp, humidity, wind);
-                int predictedAqi  = result[0];
-                boolean usedML    = result[1] == 1;
+                int[] result = callMLServer(selectedModel, currentAqi,
+                        pm25, pm10, no2, o3, co, so2,
+                        temp, humidity, wind, windDirection, lat, lon);
+                int predictedAqi = result[0];
+                boolean usedML   = result[1] == 1;
 
-                // Step 3: Fetch health profile
                 JsonNode profile = fetchHealthProfile();
+                String advice    = buildRiskAdvice(predictedAqi, profile);
 
-                // Step 4: Build risk advisory
-                String advice = buildRiskAdvice(predictedAqi, profile);
-
-                // Step 5: Update UI
                 final String modelLabel = usedML
                         ? "Predicted by: " + modelSelector.getValue()
                         : "Predicted by: Fallback formula (ML server unavailable)";
@@ -165,10 +154,7 @@ public class MainController {
 
             } catch (Exception e) {
                 e.printStackTrace();
-                Platform.runLater(() -> {
-                    showError("Error: " + e.getMessage());
-                    resetButton();
-                });
+                Platform.runLater(() -> { showError("Error: " + e.getMessage()); resetButton(); });
             }
         }).start();
     }
@@ -178,27 +164,29 @@ public class MainController {
         predictButton.setText("PREDICT NOW");
     }
 
-    /* ── ML Server Call ────────────────────────────────────────── */
-    private int[] callMLServer(String modelName, int currentAqi, double pm25, double pm10,
-                                double no2, double o3, double co, double so2,
-                                double temp, double humidity, double wind) {
+    /* ── ML Server Call — uses real lat/lon/windDirection ──────── */
+    private int[] callMLServer(String modelName, int currentAqi,
+                               double pm25, double pm10, double no2, double o3,
+                               double co, double so2, double temp, double humidity,
+                               double wind, double windDirection, double lat, double lon) {
         try {
             LocalDateTime now = LocalDateTime.now();
 
             Map<String, Object> payload = new HashMap<>();
             payload.put("model",            modelName);
             payload.put("current_aqi",      currentAqi);
+            payload.put("lat",              lat);
+            payload.put("lon",              lon);
             payload.put("pm25",             pm25);
             payload.put("pm10",             pm10);
             payload.put("no2",              no2);
-            payload.put("nox",              no2);
             payload.put("o3",               o3);
             payload.put("co",               co);
             payload.put("so2",              so2);
             payload.put("temperature",      temp);
             payload.put("relativehumidity", humidity);
             payload.put("wind_speed",       wind);
-            payload.put("wind_direction",   180.0);
+            payload.put("wind_direction",   windDirection);   // real value from OWM
             payload.put("aqi_lag_1",        currentAqi);
             payload.put("aqi_lag_2",        currentAqi);
             payload.put("hour",             now.getHour());
@@ -220,14 +208,16 @@ public class MainController {
             if (res.statusCode() == 200) {
                 JsonNode result = objectMapper.readTree(res.body());
                 int predicted = result.path("predicted_aqi").asInt(currentAqi);
-                return new int[]{predicted, 1}; // 1 = used ML
+                return new int[]{predicted, 1};
+            } else {
+                System.out.println("ML server returned " + res.statusCode() + ": " + res.body());
             }
 
         } catch (Exception e) {
+            e.printStackTrace();
             System.out.println("ML server unavailable, using fallback: " + e.getMessage());
         }
 
-        // Fallback
         return new int[]{fallbackPredict(currentAqi, pm25, pm10), 0};
     }
 
@@ -248,8 +238,7 @@ public class MainController {
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(BACKEND + "/health-profile/" + userId))
                     .GET().build();
-            HttpResponse<String> res = httpClient.send(
-                    req, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
             if (res.statusCode() == 200) return objectMapper.readTree(res.body());
         } catch (Exception e) {
             System.out.println("Could not fetch health profile: " + e.getMessage());
@@ -270,9 +259,9 @@ public class MainController {
 
         if (profile != null) {
             int age = profile.path("age").asInt(0);
-            if (age > 60 || age < 12)                        riskScore += 10;
-            else if (age > 45)                               riskScore += 5;
-            if (profile.path("is_smoker").asBoolean(false))  riskScore += 10;
+            if (age > 60 || age < 12)                         riskScore += 10;
+            else if (age > 45)                                riskScore += 5;
+            if (profile.path("is_smoker").asBoolean(false))   riskScore += 10;
             if (profile.path("is_allergic").asBoolean(false)) riskScore += 5;
             if (profile.path("is_pregnant").asBoolean(false)) riskScore += 8;
             JsonNode conditions = profile.path("breathing_conditions");
@@ -298,7 +287,6 @@ public class MainController {
 
         StringBuilder advice = new StringBuilder();
         advice.append("RISK SCORE: ").append(riskScore).append("/100 (").append(riskLevel).append(")\n\n");
-
         advice.append("PREDICTED AQI (Next Hour):\n");
         if      (predictedAqi <= 50)  advice.append("Good — Air quality is satisfactory.\n\n");
         else if (predictedAqi <= 100) advice.append("Satisfactory — Acceptable for most people.\n\n");
@@ -331,13 +319,13 @@ public class MainController {
             advice.append("SYMPTOM MANAGEMENT:\n");
             if (symptomBreath.isSelected())
                 advice.append(predictedAqi > 150 ? "• Breathlessness: Use inhaler. Seek help if severe.\n"
-                                                 : "• Breathlessness: Reduce exertion.\n");
+                        : "• Breathlessness: Reduce exertion.\n");
             if (symptomCough.isSelected())
                 advice.append(predictedAqi > 150 ? "• Cough: Run HEPA purifier.\n"
-                                                 : "• Cough: Wear N95 mask outdoors.\n");
+                        : "• Cough: Wear N95 mask outdoors.\n");
             if (symptomChest.isSelected())
                 advice.append(predictedAqi > 150 ? "• Chest pain: Consult a doctor immediately.\n"
-                                                 : "• Chest tightness: Rest, avoid exertion.\n");
+                        : "• Chest tightness: Rest, avoid exertion.\n");
             if (symptomIrritation.isSelected())
                 advice.append("• Eye/throat irritation: Wash face, use eye drops.\n");
             if (symptomFatigue.isSelected())
@@ -412,8 +400,7 @@ public class MainController {
                     HttpRequest req = HttpRequest.newBuilder()
                             .uri(URI.create(BACKEND + "/search?q=" + encoded))
                             .GET().build();
-                    HttpResponse<String> res = httpClient.send(
-                            req, HttpResponse.BodyHandlers.ofString());
+                    HttpResponse<String> res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
                     JsonNode results = objectMapper.readTree(res.body());
                     Platform.runLater(() -> {
                         suggestionsPopup.getItems().clear();
@@ -450,7 +437,6 @@ public class MainController {
 
         headerLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 24));
         headerLabel.setTextFill(Color.web("#2C3E50"));
-
         symptomsTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
         symptomsTitle.setTextFill(Color.web("#7F8C8D"));
 
@@ -462,10 +448,9 @@ public class MainController {
         symptomFatigue.setTextFill(checkboxColor);
 
         cityField.setStyle("-fx-background-color: #F8F9FA; -fx-border-color: #D1D5DB; " +
-                           "-fx-border-radius: 4; -fx-padding: 8;");
-
+                "-fx-border-radius: 4; -fx-padding: 8;");
         modelSelector.setStyle("-fx-background-color: #F8F9FA; -fx-border-color: #D1D5DB; " +
-                               "-fx-border-radius: 4;");
+                "-fx-border-radius: 4;");
 
         predictButton.setBackground(new Background(new BackgroundFill(
                 Color.web("#3498DB"), new CornerRadii(6), Insets.EMPTY)));

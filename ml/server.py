@@ -39,22 +39,36 @@ FEATURES = {
         'aqi_lag_1', 'aqi_lag_2'
     ],
     "xgboost": [
-        'co', 'no', 'no2', 'nox', 'o3',
-        'pm10', 'pm25', 'so2',
-        'temperature', 'relativehumidity',
-        'wind_speed', 'wind_direction',
+        'lat', 'lon', 'co', 'no', 'no2', 'o3',
+        'pm10', 'pm25', 'relativehumidity', 'so2', 'temperature',
+        'si_pm25', 'si_pm10', 'AQI',
         'hour', 'day_of_week', 'month',
         'aqi_lag_1', 'aqi_lag_2'
     ],
     "lightgbm": [
-        'co', 'no', 'no2', 'nox', 'o3',
-        'pm10', 'pm25', 'so2',
-        'temperature', 'relativehumidity',
-        'wind_speed', 'wind_direction',
+        'lat', 'lon', 'co', 'no', 'no2', 'o3',
+        'pm10', 'pm25', 'relativehumidity', 'so2', 'temperature',
+        'si_pm25', 'si_pm10', 'AQI',
         'hour', 'day_of_week', 'month',
         'aqi_lag_1', 'aqi_lag_2'
     ]
 }
+def calc_si_pm25(pm25):
+    table = [(0,30,0,50),(30,60,51,100),(60,90,101,200),
+             (90,120,201,300),(120,250,301,400),(250,500,401,500)]
+    for lo, hi, ilo, ihi in table:
+        if pm25 <= hi:
+            return ((ihi-ilo)/(hi-lo))*(pm25-lo)+ilo
+    return 500
+
+def calc_si_pm10(pm10):
+    table = [(0,50,0,50),(50,100,51,100),(100,250,101,200),
+             (250,350,201,300),(350,430,301,400),(430,600,401,500)]
+    for lo, hi, ilo, ihi in table:
+        if pm10 <= hi:
+            return ((ihi-ilo)/(hi-lo))*(pm10-lo)+ilo
+    return 500
+
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -76,6 +90,8 @@ def predict():
 
         # All possible values — each model picks only what it needs
         all_values = {
+            'lat':              data.get('lat',        10.0),
+            'lon':              data.get('lon',        76.0),
             'co':               data.get('co',               0.0),
             'no':               data.get('no',               0.0),
             'no2':              data.get('no2',              0.0),
@@ -84,6 +100,9 @@ def predict():
             'pm10':             data.get('pm10',             0.0),
             'pm25':             data.get('pm25',             0.0),
             'so2':              data.get('so2',              0.0),
+            'si_pm25':          calc_si_pm25(data.get('pm25', 0.0)),
+            'si_pm10':          calc_si_pm10(data.get('pm10', 0.0)),
+            'AQI':              current_aqi,
             'temperature':      data.get('temperature',      25.0),
             'relativehumidity': data.get('relativehumidity', 60.0),
             'wind_speed':       data.get('wind_speed',       5.0),
