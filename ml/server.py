@@ -17,8 +17,10 @@ matplotlib.use('Agg')          # headless — no display needed
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), 'models')
 
@@ -285,7 +287,7 @@ def plot_shap(model_name, df):
 
 
 
-SPRING_BASE = "http://localhost:8080/api"
+SPRING_BASE = os.environ.get("SPRING_BASE_URL", "http://localhost:8080/api")
 
 def _fetch_real_history(lat, lon):
     """
@@ -659,4 +661,5 @@ def health():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
