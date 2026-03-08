@@ -796,18 +796,28 @@ public class DashboardController {
      */
     private double[] tryWindowsLocation() {
         try {
-            // PowerShell script: request location asynchronously, wait up to 8s
+            // WinRT types need [Windows.Devices.Geolocation.Geolocator,
+            // Windows.Devices.Geolocation, ContentType=WindowsRuntime] syntax
+            // AND the assembly must be loaded differently in PS5 vs PS7
             String psScript =
-                    "Add-Type -AssemblyName System.Runtime.WindowsRuntime; " +
-                            "$loc = [Windows.Devices.Geolocation.Geolocator]::new(); " +
-                            "$loc.DesiredAccuracy = [Windows.Devices.Geolocation.PositionAccuracy]::High; " +
-                            "$taskMethod = [System.WindowsRuntimeSystemExtensions].GetMethod('AsTask', " +
-                            "  [Type[]]@([Windows.Foundation.IAsyncOperation[Windows.Devices.Geolocation.Geoposition]])); " +
-                            "$task = $taskMethod.Invoke($null, @($loc.GetGeopositionAsync())); " +
+                    "$poa = [System.Runtime.InteropServices.WindowsRuntime.AsyncInfo]; " +
+                            "if (-not $poa) { exit 1 } " +
+
+                            // Load the WinRT projection assembly
+                            "[void][Windows.Devices.Geolocation.Geolocator," +
+                            "Windows.Devices.Geolocation,ContentType=WindowsRuntime]; " +
+
+                            "$loc = New-Object Windows.Devices.Geolocation.Geolocator; " +
+                            "$loc.DesiredAccuracyInMeters = 100; " +
+
+                            // GetGeopositionAsync() returns IAsyncOperation — wrap with AsTask
+                            "$iop = $loc.GetGeopositionAsync(); " +
+                            "$task = [System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeSystemExtensions]" +
+                            "::AsTask($iop); " +
                             "if ($task.Wait(8000)) { " +
-                            "  $pos = $task.Result.Coordinate.Point.Position; " +
-                            "  Write-Output ($pos.Latitude.ToString('F6') + ',' + $pos.Longitude.ToString('F6')); " +
-                            "} else { Write-Output 'TIMEOUT'; }";
+                            "  $c = $task.Result.Coordinate.Point.Position; " +
+                            "  Write-Host ($c.Latitude.ToString('F6') + ',' + $c.Longitude.ToString('F6')); " +
+                            "} else { Write-Host 'TIMEOUT'; }";
 
             ProcessBuilder pb = new ProcessBuilder(
                     "powershell", "-NoProfile", "-NonInteractive",
@@ -816,31 +826,32 @@ public class DashboardController {
             Process proc = pb.start();
 
             String output = new String(proc.getInputStream().readAllBytes()).trim();
-            boolean finished = proc.waitFor(10, java.util.concurrent.TimeUnit.SECONDS);
+            boolean finished = proc.waitFor(12, java.util.concurrent.TimeUnit.SECONDS);
             if (!finished) { proc.destroyForcibly(); return null; }
 
-            System.out.println("[Locate/Win] PowerShell output: " + output);
+            System.out.println("[Locate/Win] Output: " + output);
 
-            if (output.contains(",") && !output.contains("TIMEOUT")) {
-                // Take only the last line (PowerShell may print warnings first)
-                String lastLine = output.lines()
-                        .filter(l -> l.matches("-?\\d+\\.\\d+,-?\\d+\\.\\d+"))
-                        .reduce((a, b) -> b)
-                        .orElse(null);
-                if (lastLine != null) {
-                    String[] parts = lastLine.split(",");
-                    return new double[]{
-                            Double.parseDouble(parts[0].trim()),
-                            Double.parseDouble(parts[1].trim())
-                    };
+            // Extract the lat,lon line (ignore any warnings above it)
+            String coordLine = output.lines()
+                    .map(String::trim)
+                    .filter(l -> l.matches("-?\\d+\\.\\d+,-?\\d+\\.\\d+"))
+                    .reduce((a, b) -> b)
+                    .orElse(null);
+
+            if (coordLine != null) {
+                String[] parts = coordLine.split(",");
+                double lat = Double.parseDouble(parts[0]);
+                double lon = Double.parseDouble(parts[1]);
+                // Sanity check — reject 0,0 or obviously wrong coords
+                if (Math.abs(lat) > 0.01 && Math.abs(lon) > 0.01) {
+                    return new double[]{lat, lon};
                 }
             }
         } catch (Exception e) {
-            System.out.println("[Locate/Win] PowerShell location failed: " + e.getMessage());
+            System.out.println("[Locate/Win] Exception: " + e.getMessage());
         }
         return null;
     }
-
     /**
      * macOS CoreLocation via osascript.
      * Prompts the user for location permission on first run.
@@ -929,7 +940,13 @@ public class DashboardController {
         if (count == 1) return lat1 != 0 ? new double[]{lat1, lon1} : new double[]{lat2, lon2};
 
         // Both succeeded — average them
-        return new double[]{(lat1 + lat2) / 2.0, (lon1 + lon2) / 2.0};
+        double distance = Math.sqrt(Math.pow(lat1 - lat2, 2) + Math.pow(lon1 - lon2, 2));
+        if (distance < 0.5) {
+            return new double[]{(lat1 + lat2) / 2.0, (lon1 + lon2) / 2.0};
+        } else {
+            // They disagree — trust ip-api (more accurate for India)
+            return lat1 != 0 ? new double[]{lat1, lon1} : new double[]{lat2, lon2};
+        }
     }
 
     /**
