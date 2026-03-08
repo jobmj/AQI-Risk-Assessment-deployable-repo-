@@ -26,7 +26,7 @@ import java.util.Map;
 
 public class ModelDetailController {
 
-    private static final String ML_SERVER = "http://localhost:5050";
+    private static final String ML_SERVER = "http://localhost:5000";
 
     // ── State passed from prediction page ────────────────────────
     private String modelName;       // "xgboost" / "randomforest" / "lightgbm"
