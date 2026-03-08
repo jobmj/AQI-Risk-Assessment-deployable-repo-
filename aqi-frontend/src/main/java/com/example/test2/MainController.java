@@ -9,6 +9,15 @@ import javafx.application.Platform;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.fxml.FXML;
+import javafx.scene.chart.LineChart;
+import javafx.scene.chart.CategoryAxis;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.XYChart;
+import javafx.scene.layout.Priority;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Arc;
+import javafx.scene.shape.ArcType;
+import javafx.scene.shape.StrokeLineCap;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
@@ -69,6 +78,12 @@ public class MainController {
     private Label  riskOutOf;
     private Arc    progressArc;
     private Button backBtn;          // elevated back button (injected into rootBox)
+
+    private String perfCity = null;
+    private double perfLat  = 0;
+    private double perfLon  = 0;
+
+    private JsonNode lastAqiData = null;
 
     // Symptom tile containers (for active-state toggling)
     private VBox tileBreath, tileCough, tileChest, tileIrritation, tileFatigue;
@@ -148,6 +163,7 @@ public class MainController {
                     resetButton(); return;
                 }
                 JsonNode d      = mapper.readTree(r.body());
+                lastAqiData = d;
                 int  curAqi     = d.path("aqi").asInt();
                 double pm25     = d.path("pm25").asDouble();
                 double pm10     = d.path("pm10").asDouble();
@@ -187,6 +203,36 @@ public class MainController {
     private void resetButton() {
         predictButton.setDisable(false);
         predictButton.setText("PREDICT NOW");
+    }
+
+    private void openModelDetail(String modelNameInternal) {
+        // Build the detail page programmatically
+        ModelDetailController detail = new ModelDetailController();
+        detail.init(modelNameInternal, lastAqiData);
+        VBox detailRoot = detail.buildPage();
+
+        // Wrap in ScrollPane
+        ScrollPane sp = new ScrollPane(detailRoot);
+        sp.setFitToWidth(true);
+        sp.setFitToHeight(true);
+        sp.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        sp.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        sp.setStyle("-fx-background-color: #0f172a; -fx-background: #0f172a;");
+
+        // Switch scene root
+        javafx.scene.Scene scene = rootBox.getScene();
+        if (scene != null) {
+            scene.setRoot(sp);
+            // Update window title
+            if (scene.getWindow() instanceof javafx.stage.Stage stage) {
+                stage.setTitle(
+                        switch (modelNameInternal) {
+                            case "randomforest" -> "Random Forest — Model Analysis";
+                            case "lightgbm"     -> "LightGBM — Model Analysis";
+                            default             -> "XGBoost — Model Analysis";
+                        });
+            }
+        }
     }
 
     // ── Risk score (WHO/CPCB accurate) ───────────────────────────
@@ -584,17 +630,15 @@ public class MainController {
 
         // ── ELEVATED BACK BUTTON ──────────────────────────────────
         // "← Back to Dashboard" with chevron circle + hover micro-interaction
+        // ── HEADER ROW: back button + performance button ──────────────
         HBox chevronCircle = makeChevronCircle();
         Label backText = new Label("Back to Dashboard");
-        backText.setStyle(
-                "-fx-font-size: 13px; -fx-font-family: 'Segoe UI'; -fx-text-fill: #6366F1;"
-        );
+        backText.setStyle("-fx-font-size: 13px; -fx-font-family: 'Segoe UI'; -fx-text-fill: #6366F1;");
         HBox backRow = new HBox(10, chevronCircle, backText);
         backRow.setAlignment(Pos.CENTER_LEFT);
         backRow.setStyle("-fx-cursor: hand;");
         backRow.setOnMouseEntered(e -> {
-            backText.setStyle("-fx-font-size: 13px; -fx-font-family: 'Segoe UI'; " +
-                    "-fx-text-fill: #4F46E5; -fx-font-weight: bold;");
+            backText.setStyle("-fx-font-size: 13px; -fx-font-family: 'Segoe UI'; -fx-text-fill: #4F46E5; -fx-font-weight: bold;");
             animateChevronLeft(chevronCircle, true);
         });
         backRow.setOnMouseExited(e -> {
@@ -603,13 +647,42 @@ public class MainController {
         });
         backRow.setOnMouseClicked(e -> handleBackToDashboard());
 
+        Button perfBtn = new Button("📊  Model Performance");
+        perfBtn.setStyle(
+                "-fx-background-color: #EEF2FF; -fx-text-fill: #4F46E5;" +
+                        "-fx-font-weight: bold; -fx-font-size: 13px;" +
+                        "-fx-background-radius: 20; -fx-border-color: #C7D2FE;" +
+                        "-fx-border-radius: 20; -fx-border-width: 1;" +
+                        "-fx-padding: 8 18; -fx-cursor: hand;");
+        perfBtn.setOnMouseEntered(e -> perfBtn.setStyle(
+                "-fx-background-color: #6366F1; -fx-text-fill: white;" +
+                        "-fx-font-weight: bold; -fx-font-size: 13px;" +
+                        "-fx-background-radius: 20; -fx-border-color: #6366F1;" +
+                        "-fx-border-radius: 20; -fx-border-width: 1;" +
+                        "-fx-padding: 8 18; -fx-cursor: hand;" +
+                        "-fx-effect: dropshadow(gaussian, rgba(99,102,241,0.35), 10, 0, 0, 3);"));
+        perfBtn.setOnMouseExited(e -> perfBtn.setStyle(
+                "-fx-background-color: #EEF2FF; -fx-text-fill: #4F46E5;" +
+                        "-fx-font-weight: bold; -fx-font-size: 13px;" +
+                        "-fx-background-radius: 20; -fx-border-color: #C7D2FE;" +
+                        "-fx-border-radius: 20; -fx-border-width: 1;" +
+                        "-fx-padding: 8 18; -fx-cursor: hand;"));
+        perfBtn.setOnAction(e -> showModelPerformance());
+
+        Region navSpacer = new Region();
+        HBox.setHgrow(navSpacer, Priority.ALWAYS);
+
+        HBox navRow = new HBox(backRow, navSpacer, perfBtn);
+        navRow.setAlignment(Pos.CENTER_LEFT);
+
+        if (!rootBox.getChildren().isEmpty()) {
+            rootBox.getChildren().set(0, navRow);
+        } else {
+            rootBox.getChildren().add(0, navRow);
+        }
+
         // Replace any existing back button in rootBox[0] with our new one
         // (FXML usually has a hyperlink or button at position 0)
-        if (!rootBox.getChildren().isEmpty()) {
-            rootBox.getChildren().set(0, backRow);
-        } else {
-            rootBox.getChildren().add(0, backRow);
-        }
 
         // ── TOP INPUT CARD — glassmorphism ────────────────────────
         topInputArea.setStyle(
@@ -810,6 +883,568 @@ public class MainController {
         if (!adviceCard.getChildren().contains(adviceContentArea)) {
             adviceCard.getChildren().add(adviceContentArea);
         }
+    }
+
+    private void showModelPerformance() {
+        // Use whatever city was last searched, or prompt user
+        String city = cityField.getText().trim();
+        if (city.isEmpty()) {
+            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                    javafx.scene.control.Alert.AlertType.INFORMATION);
+            alert.setTitle("Model Performance");
+            alert.setHeaderText("Search a city first");
+            alert.setContentText("Enter a city in the search box and click Predict to load AQI data, then view model performance.");
+            alert.showAndWait();
+            return;
+        }
+
+        // ── Build overlay pane ────────────────────────────────────
+        StackPane overlay = new StackPane();
+        overlay.setStyle("-fx-background-color: rgba(15,23,42,0.72);");
+        overlay.setAlignment(Pos.CENTER);
+
+        // ── Main panel ────────────────────────────────────────────
+        VBox panel = new VBox(0);
+        panel.setStyle(
+                "-fx-background-color: #f0f4f8;" +
+                        "-fx-background-radius: 20;" +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 40, 0, 0, 12);");
+        panel.setMaxWidth(900);
+        panel.setMaxHeight(680);
+        panel.setMinWidth(820);
+        panel.setPrefWidth(880);
+
+        // ── Panel header bar ──────────────────────────────────────
+        HBox header = new HBox();
+        header.setStyle(
+                "-fx-background-color: linear-gradient(to right, #4F46E5, #6366F1);" +
+                        "-fx-background-radius: 20 20 0 0;" +
+                        "-fx-padding: 16 24;");
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        Label title = new Label("📊  ML Model AQI Comparison");
+        title.setStyle("-fx-font-size: 17px; -fx-font-weight: bold; -fx-text-fill: white; -fx-font-family: 'Segoe UI';");
+
+        Label subtitle = new Label("Predicted vs actual AQI over forecast window — all three models");
+        subtitle.setStyle("-fx-font-size: 12px; -fx-text-fill: rgba(255,255,255,0.75); -fx-font-family: 'Segoe UI';");
+
+        VBox titleBox = new VBox(2, title, subtitle);
+
+        Region headerSpacer = new Region();
+        HBox.setHgrow(headerSpacer, Priority.ALWAYS);
+
+        // Refresh button
+        Button refreshBtn = new Button("↻  Refresh");
+        refreshBtn.setStyle(
+                "-fx-background-color: rgba(255,255,255,0.18); -fx-text-fill: white;" +
+                        "-fx-background-radius: 16; -fx-border-color: rgba(255,255,255,0.35);" +
+                        "-fx-border-radius: 16; -fx-border-width: 1;" +
+                        "-fx-font-size: 12px; -fx-padding: 6 14; -fx-cursor: hand;");
+
+        // Close button
+        Button closeBtn = new Button("✕");
+        closeBtn.setStyle(
+                "-fx-background-color: rgba(255,255,255,0.15); -fx-text-fill: white;" +
+                        "-fx-background-radius: 14; -fx-font-size: 14px; -fx-font-weight: bold;" +
+                        "-fx-padding: 4 10; -fx-cursor: hand;");
+        closeBtn.setOnMouseEntered(e -> closeBtn.setStyle(
+                "-fx-background-color: rgba(239,68,68,0.8); -fx-text-fill: white;" +
+                        "-fx-background-radius: 14; -fx-font-size: 14px; -fx-font-weight: bold;" +
+                        "-fx-padding: 4 10; -fx-cursor: hand;"));
+        closeBtn.setOnMouseExited(e -> closeBtn.setStyle(
+                "-fx-background-color: rgba(255,255,255,0.15); -fx-text-fill: white;" +
+                        "-fx-background-radius: 14; -fx-font-size: 14px; -fx-font-weight: bold;" +
+                        "-fx-padding: 4 10; -fx-cursor: hand;"));
+        closeBtn.setOnAction(e -> {
+            // Remove overlay from scene
+            if (overlay.getParent() instanceof javafx.scene.layout.Pane p) {
+                p.getChildren().remove(overlay);
+            } else if (rootBox.getScene() != null &&
+                    rootBox.getScene().getRoot() instanceof StackPane sp) {
+                sp.getChildren().remove(overlay);
+            }
+        });
+
+        header.getChildren().addAll(titleBox, headerSpacer, refreshBtn, closeBtn);
+        HBox.setMargin(refreshBtn, new Insets(0, 8, 0, 0));
+
+        // ── Legend row ────────────────────────────────────────────
+        HBox legendRow = new HBox(20);
+        legendRow.setStyle("-fx-padding: 14 28 6 28; -fx-background-color: white;");
+        legendRow.setAlignment(Pos.CENTER_LEFT);
+        legendRow.getChildren().addAll(
+                makeLegendItem("#1a73e8", "Actual AQI"),
+                makeLegendItem("#10b981", "XGBoost"),
+                makeLegendItem("#f59e0b", "Random Forest"),
+                makeLegendItem("#8b5cf6", "LightGBM")
+        );
+
+        // ── Chart container ───────────────────────────────────────
+        VBox chartCard = new VBox(0);
+        chartCard.setStyle(
+                "-fx-background-color: white; -fx-padding: 16 20 8 20;");
+        VBox.setVgrow(chartCard, Priority.ALWAYS);
+
+        VBox perfChartContainer = new VBox();
+        perfChartContainer.setPrefHeight(320);
+        VBox.setVgrow(perfChartContainer, Priority.ALWAYS);
+
+        Label perfStatusLabel = new Label("Loading data…");
+        perfStatusLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #9ca3af; -fx-padding: 4 0 8 0;");
+
+        chartCard.getChildren().addAll(perfChartContainer, perfStatusLabel);
+
+        // ── MAE cards row ─────────────────────────────────────────
+        Label[] maeXgbLbl  = {new Label("MAE: —")};
+        Label[] maeRfLbl   = {new Label("MAE: —")};
+        Label[] maeLgbLbl  = {new Label("MAE: —")};
+
+        VBox cardXgb = makeMaeCard("XGBoost",       "#10b981", maeXgbLbl[0]);
+        VBox cardRf  = makeMaeCard("Random Forest", "#f59e0b", maeRfLbl[0]);
+        VBox cardLgb = makeMaeCard("LightGBM",      "#8b5cf6", maeLgbLbl[0]);
+
+        HBox maeRow = new HBox(16, cardXgb, cardRf, cardLgb);
+        maeRow.setAlignment(Pos.CENTER);
+        maeRow.setStyle("-fx-padding: 12 28 20 28; -fx-background-color: #f0f4f8;");
+
+        panel.getChildren().addAll(header, legendRow, chartCard, maeRow);
+
+        // ── Click outside to close ────────────────────────────────
+        overlay.setOnMouseClicked(e -> {
+            if (e.getTarget() == overlay) closeBtn.fire();
+        });
+
+        overlay.getChildren().add(panel);
+
+        // ── Inject overlay into scene ─────────────────────────────
+        javafx.scene.Scene scene = rootBox.getScene();
+        if (scene != null && scene.getRoot() instanceof StackPane sp) {
+            sp.getChildren().add(overlay);
+        } else {
+            // Fallback: wrap scene root in a StackPane
+            javafx.scene.Parent currentRoot = scene.getRoot();
+            StackPane wrapper = new StackPane(currentRoot, overlay);
+            scene.setRoot(wrapper);
+        }
+
+        // Slide-in animation
+        panel.setTranslateY(40);
+        panel.setOpacity(0);
+        Timeline fadeIn = new Timeline(
+                new KeyFrame(Duration.millis(220),
+                        new KeyValue(panel.translateYProperty(), 0, Interpolator.EASE_OUT),
+                        new KeyValue(panel.opacityProperty(), 1, Interpolator.EASE_OUT)));
+        fadeIn.play();
+
+        // ── Wire refresh button ───────────────────────────────────
+        refreshBtn.setOnAction(e -> {
+            perfChartContainer.getChildren().clear();
+            perfStatusLabel.setText("Refreshing…");
+            maeXgbLbl[0].setText("MAE: —");
+            maeRfLbl[0].setText("MAE: —");
+            maeLgbLbl[0].setText("MAE: —");
+            loadPerfData(city, perfChartContainer, perfStatusLabel,
+                    maeXgbLbl[0], maeRfLbl[0], maeLgbLbl[0], cardXgb, cardRf, cardLgb);
+        });
+
+        // ── Load data immediately ─────────────────────────────────
+        loadPerfData(city, perfChartContainer, perfStatusLabel,
+                maeXgbLbl[0], maeRfLbl[0], maeLgbLbl[0], cardXgb, cardRf, cardLgb);
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  loadPerfData()  —  fetches forecast + calls ML for all 3 models
+    // ─────────────────────────────────────────────────────────────────
+    private void loadPerfData(String city,
+                              VBox chartContainer, Label statusLabel,
+                              Label maeXgbLbl, Label maeRfLbl, Label maeLgbLbl,
+                              VBox cardXgb, VBox cardRf, VBox cardLgb) {
+        Platform.runLater(() -> statusLabel.setText("Fetching forecast data for " + city + "…"));
+
+        new Thread(() -> {
+            try {
+                // Step 1: fetch forecast from Spring backend
+                String enc = java.net.URLEncoder.encode(city, java.nio.charset.StandardCharsets.UTF_8);
+                String forecastUrl = BACKEND + "/forecast?city=" + enc;
+
+                HttpResponse<String> forecastResp = http.send(
+                        HttpRequest.newBuilder()
+                                .uri(URI.create(forecastUrl)).GET()
+                                .timeout(java.time.Duration.ofSeconds(15)).build(),
+                        HttpResponse.BodyHandlers.ofString());
+
+                if (forecastResp.statusCode() != 200) {
+                    Platform.runLater(() -> statusLabel.setText(
+                            "Could not load forecast (HTTP " + forecastResp.statusCode() + "). Search a city first."));
+                    return;
+                }
+
+                JsonNode forecastNode = mapper.readTree(forecastResp.body());
+                JsonNode entries = forecastNode.path("entries");
+
+                // Step 2: parse up to 24 hourly points
+                List<String>  labels    = new ArrayList<>();
+                List<Integer> actualAqi = new ArrayList<>();
+                List<Double>  temps     = new ArrayList<>();
+                List<Double>  humids    = new ArrayList<>();
+                List<Double>  winds     = new ArrayList<>();
+                List<Double>  pm25s     = new ArrayList<>();
+                List<Double>  pm10s     = new ArrayList<>();
+                List<Double>  no2s      = new ArrayList<>();
+                List<Double>  o3s       = new ArrayList<>();
+                List<Double>  cos       = new ArrayList<>();
+                List<Integer> hours     = new ArrayList<>();
+                List<Integer> dows      = new ArrayList<>();
+                List<Integer> months    = new ArrayList<>();
+
+                int count = 0;
+                for (JsonNode e : entries) {
+                    if (count >= 24) break;
+                    String dtTxt = e.path("dtTxt").asText();
+                    labels.add(perfFormatLabel(dtTxt));
+                    actualAqi.add(e.path("aqi").asInt(0));
+                    temps.add(e.path("temp").asDouble(25));
+                    humids.add(e.path("humidity").asDouble(60));
+                    winds.add(e.path("windSpeed").asDouble(5));
+                    pm25s.add(e.path("pm25").asDouble(0));
+                    pm10s.add(e.path("pm10").asDouble(0));
+                    no2s.add(e.path("no2").asDouble(0));
+                    o3s.add(e.path("o3").asDouble(0));
+                    cos.add(e.path("co").asDouble(0));
+                    try {
+                        java.time.LocalDateTime ldt = java.time.LocalDateTime.parse(
+                                dtTxt.trim(),
+                                java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                        hours.add(ldt.getHour());
+                        dows.add(ldt.getDayOfWeek().getValue() % 7);
+                        months.add(ldt.getMonthValue());
+                    } catch (Exception ex) {
+                        hours.add(12); dows.add(0); months.add(1);
+                    }
+                    count++;
+                }
+
+                if (labels.isEmpty()) {
+                    Platform.runLater(() -> statusLabel.setText("No forecast data returned."));
+                    return;
+                }
+
+                Platform.runLater(() -> statusLabel.setText(
+                        "Querying ML models for " + labels.size() + " hours…"));
+
+                // Step 3: ML predictions for each hour x 3 models
+                double baseAqi = actualAqi.isEmpty() ? 100 : actualAqi.get(0);
+                double so2 = 0;
+
+                List<Integer> xgbPreds = new ArrayList<>();
+                List<Integer> rfPreds  = new ArrayList<>();
+                List<Integer> lgbPreds = new ArrayList<>();
+
+                for (int i = 0; i < labels.size(); i++) {
+                    double lagAqi1 = i == 0 ? baseAqi : actualAqi.get(i - 1);
+                    double lagAqi2 = i <= 1 ? baseAqi : actualAqi.get(i - 2);
+                    double siPm25  = perfCalcSiPm25(pm25s.get(i));
+                    double siPm10  = perfCalcSiPm10(pm10s.get(i));
+
+                    com.fasterxml.jackson.databind.node.ObjectNode payload =
+                            mapper.createObjectNode();
+                    payload.put("lat",              10.0);
+                    payload.put("lon",              76.0);
+                    payload.put("co",               cos.get(i));
+                    payload.put("no",               0.0);
+                    payload.put("no2",              no2s.get(i));
+                    payload.put("o3",               o3s.get(i));
+                    payload.put("pm10",             pm10s.get(i));
+                    payload.put("pm25",             pm25s.get(i));
+                    payload.put("relativehumidity", humids.get(i));
+                    payload.put("so2",              so2);
+                    payload.put("temperature",      temps.get(i));
+                    payload.put("si_pm25",          siPm25);
+                    payload.put("si_pm10",          siPm10);
+                    payload.put("AQI",              actualAqi.get(i));
+                    payload.put("hour",             hours.get(i));
+                    payload.put("day_of_week",      dows.get(i));
+                    payload.put("month",            months.get(i));
+                    payload.put("aqi_lag_1",        lagAqi1);
+                    payload.put("aqi_lag_2",        lagAqi2);
+                    payload.put("wind_speed",       winds.get(i));
+                    payload.put("wind_direction",   180.0);
+                    payload.put("current_aqi",      actualAqi.get(i));
+
+                    xgbPreds.add(perfFlaskPredict(payload, "xgboost"));
+                    rfPreds.add( perfFlaskPredict(payload, "randomforest"));
+                    lgbPreds.add(perfFlaskPredict(payload, "lightgbm"));
+                }
+
+                // Step 4: compute MAE
+                double maeXgb = perfComputeMae(actualAqi, xgbPreds);
+                double maeRf  = perfComputeMae(actualAqi, rfPreds);
+                double maeLgb = perfComputeMae(actualAqi, lgbPreds);
+
+                int avgAqi = (int) actualAqi.stream().mapToInt(Integer::intValue).average().orElse(0);
+
+                // Step 5: draw on FX thread
+                final List<String>  fLabels = new ArrayList<>(labels);
+                final List<Integer> fActual = new ArrayList<>(actualAqi);
+                final List<Integer> fXgb    = new ArrayList<>(xgbPreds);
+                final List<Integer> fRf     = new ArrayList<>(rfPreds);
+                final List<Integer> fLgb    = new ArrayList<>(lgbPreds);
+
+                Platform.runLater(() -> {
+                    drawPerfChart(chartContainer, fLabels, fActual, fXgb, fRf, fLgb, avgAqi);
+
+                    String maeColor = perfAqiColor(avgAqi);
+                    maeXgbLbl.setText(String.format("MAE: %.1f", maeXgb));
+                    maeXgbLbl.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: " + maeColor + ";");
+                    maeRfLbl.setText(String.format("MAE: %.1f", maeRf));
+                    maeRfLbl.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: " + maeColor + ";");
+                    maeLgbLbl.setText(String.format("MAE: %.1f", maeLgb));
+                    maeLgbLbl.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: " + maeColor + ";");
+
+                    statusLabel.setText("✓  " + fLabels.size() + " hours · avg AQI: " + avgAqi
+                            + " (" + perfAqiLevel(avgAqi) + ") · updated "
+                            + java.time.LocalTime.now().format(
+                            java.time.format.DateTimeFormatter.ofPattern("HH:mm")));
+                });
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                Platform.runLater(() -> statusLabel.setText("Error: " + ex.getMessage()));
+            }
+        }).start();
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  drawPerfChart()  —  animated LineChart, same style as dashboard
+    // ─────────────────────────────────────────────────────────────────
+    private void drawPerfChart(VBox container,
+                               List<String> labels, List<Integer> actual,
+                               List<Integer> xgb, List<Integer> rf, List<Integer> lgb,
+                               int avgAqi) {
+        container.getChildren().clear();
+
+        // AQI-based gradient card
+        String bg1, bg2;
+        if      (avgAqi <= 50)  { bg1 = "#e8f8f0"; bg2 = "#d0f0e0"; }
+        else if (avgAqi <= 100) { bg1 = "#fefce8"; bg2 = "#fef08a"; }
+        else if (avgAqi <= 150) { bg1 = "#fff7ed"; bg2 = "#fed7aa"; }
+        else if (avgAqi <= 200) { bg1 = "#fff1f0"; bg2 = "#fecaca"; }
+        else if (avgAqi <= 300) { bg1 = "#faf5ff"; bg2 = "#e9d5ff"; }
+        else                    { bg1 = "#fff0f0"; bg2 = "#fca5a5"; }
+
+        if (container.getParent() instanceof VBox card) {
+            card.setStyle(
+                    "-fx-background-color: linear-gradient(to bottom right, " + bg1 + ", " + bg2 + ");" +
+                            "-fx-padding: 16 20 8 20;");
+        }
+
+        CategoryAxis xAxis = new CategoryAxis();
+        NumberAxis   yAxis = new NumberAxis();
+        xAxis.setTickLabelRotation(-40);
+        xAxis.setTickLabelGap(2);
+        xAxis.setStyle("-fx-tick-label-fill: #374151; -fx-font-size: 10px;");
+        yAxis.setAutoRanging(true);
+        yAxis.setLabel("AQI");
+        yAxis.setStyle("-fx-tick-label-fill: #374151; -fx-font-size: 11px;");
+
+        LineChart<String, Number> chart = new LineChart<>(xAxis, yAxis);
+        chart.setTitle(null);
+        chart.setLegendVisible(false);
+        chart.setAnimated(false);
+        chart.setCreateSymbols(false);
+        chart.setPrefHeight(310);
+        chart.setStyle("-fx-background-color: transparent; -fx-plot-background-color: rgba(255,255,255,0.55);");
+        VBox.setVgrow(chart, Priority.ALWAYS);
+
+        XYChart.Series<String, Number> sActual = new XYChart.Series<>(); sActual.setName("Actual AQI");
+        XYChart.Series<String, Number> sXgb    = new XYChart.Series<>(); sXgb.setName("XGBoost");
+        XYChart.Series<String, Number> sRf     = new XYChart.Series<>(); sRf.setName("Random Forest");
+        XYChart.Series<String, Number> sLgb    = new XYChart.Series<>(); sLgb.setName("LightGBM");
+
+        chart.getData().addAll(sActual, sXgb, sRf, sLgb);
+        container.getChildren().add(chart);
+
+        Platform.runLater(() -> {
+            perfStyleLine(sActual, "#1a73e8", 2.5);
+            perfStyleLine(sXgb,   "#10b981", 2.0);
+            perfStyleLine(sRf,    "#f59e0b", 2.0);
+            perfStyleLine(sLgb,   "#8b5cf6", 2.0);
+
+            int n = labels.size();
+            double msPerPoint = Math.max(20, 3000.0 / Math.max(n, 1));
+            List<KeyFrame> frames = new ArrayList<>();
+
+            for (int pi = 0; pi < n; pi++) {
+                final int idx = pi;
+                frames.add(new KeyFrame(Duration.millis(idx * msPerPoint), kfEv -> {
+                    sActual.getData().add(new XYChart.Data<>(labels.get(idx), actual.get(idx)));
+                    if (xgb.get(idx) >= 0) sXgb.getData().add(new XYChart.Data<>(labels.get(idx), xgb.get(idx)));
+                    if (rf.get(idx)  >= 0) sRf.getData().add( new XYChart.Data<>(labels.get(idx), rf.get(idx)));
+                    if (lgb.get(idx) >= 0) sLgb.getData().add(new XYChart.Data<>(labels.get(idx), lgb.get(idx)));
+                    perfStyleLine(sActual, "#1a73e8", 2.5);
+                    perfStyleLine(sXgb,   "#10b981", 2.0);
+                    perfStyleLine(sRf,    "#f59e0b", 2.0);
+                    perfStyleLine(sLgb,   "#8b5cf6", 2.0);
+                }));
+            }
+            new Timeline(frames.toArray(new KeyFrame[0])).play();
+        });
+    }
+
+    // ── Helper: style a series line ──────────────────────────────────
+    private void perfStyleLine(XYChart.Series<String, Number> series, String hex, double width) {
+        if (series.getNode() != null)
+            series.getNode().setStyle(
+                    "-fx-stroke: " + hex + "; -fx-stroke-width: " + width + "px;");
+    }
+
+    // ── Helper: legend item ───────────────────────────────────────────
+    private HBox makeLegendItem(String color, String text) {
+        Region dot = new Region();
+        dot.setPrefSize(28, 4);
+        dot.setMaxSize(28, 4);
+        dot.setStyle("-fx-background-color: " + color + "; -fx-background-radius: 2;");
+        Label lbl = new Label(text);
+        lbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #374151; -fx-font-weight: bold; -fx-font-family: 'Segoe UI';");
+        HBox item = new HBox(6, dot, lbl);
+        item.setAlignment(Pos.CENTER_LEFT);
+        return item;
+    }
+
+    // ── Helper: MAE card ──────────────────────────────────────────────
+    private VBox makeMaeCard(String modelName, String color, Label maeLabel) {
+        Label nameLbl = new Label(modelName);
+        nameLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: " + color + "; -fx-font-weight: bold; -fx-font-family: 'Segoe UI';");
+        maeLabel.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #111827; -fx-font-family: 'Segoe UI';");
+        Label subLbl = new Label("Mean Abs. Error");
+        subLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #9ca3af; -fx-font-family: 'Segoe UI';");
+
+        // Convert hex "#10b981" → "16,185,129" for rgba()
+        String rgb = hexToRgb(color);
+
+        String styleNormal =
+                "-fx-background-color: white; -fx-background-radius: 12;" +
+                        "-fx-padding: 16;" +
+                        "-fx-border-color: transparent; -fx-border-radius: 12; -fx-border-width: 1.5;" +
+                        "-fx-effect: dropshadow(gaussian, rgba(" + rgb + ",0.08), 10, 0, 0, 2);";
+
+        String styleHover =
+                "-fx-background-color: white; -fx-background-radius: 12;" +
+                        "-fx-padding: 16;" +
+                        "-fx-border-color: " + color + "; -fx-border-radius: 12; -fx-border-width: 1.5;" +
+                        "-fx-effect: dropshadow(gaussian, rgba(" + rgb + ",0.45), 22, 0.3, 0, 4);";
+
+        VBox card = new VBox(4, nameLbl, maeLabel, subLbl);
+        card.setAlignment(Pos.CENTER);
+        card.setPrefWidth(210);
+        card.setStyle(styleNormal);
+
+        // Smooth scale + glow on hover
+        card.setOnMouseEntered(e -> {
+            card.setStyle(styleHover);
+            ScaleTransition st = new ScaleTransition(Duration.millis(150), card);
+            st.setToX(1.04);
+            st.setToY(1.04);
+            st.play();
+        });
+        card.setOnMouseExited(e -> {
+            card.setStyle(styleNormal);
+            ScaleTransition st = new ScaleTransition(Duration.millis(150), card);
+            st.setToX(1.0);
+            st.setToY(1.0);
+            st.play();
+        });
+
+        // Map display name → internal model name
+        String internalName = switch (modelName) {
+            case "Random Forest" -> "randomforest";
+            case "LightGBM"      -> "lightgbm";
+            default              -> "xgboost";
+        };
+        card.setOnMouseClicked(e -> openModelDetail(internalName));
+        card.setStyle(card.getStyle() + " -fx-cursor: hand;");
+
+        return card;
+    }
+
+    private String hexToRgb(String hex) {
+        // Converts "#10b981" → "16,185,129"
+        hex = hex.replace("#", "");
+        int r = Integer.parseInt(hex.substring(0, 2), 16);
+        int g = Integer.parseInt(hex.substring(2, 4), 16);
+        int b = Integer.parseInt(hex.substring(4, 6), 16);
+        return r + "," + g + "," + b;
+    }
+
+    // ── Flask predict (perf version) ──────────────────────────────────
+    private int perfFlaskPredict(com.fasterxml.jackson.databind.node.ObjectNode payload, String modelName) {
+        try {
+            payload.put("model", modelName);
+            HttpResponse<String> resp = http.send(
+                    HttpRequest.newBuilder()
+                            .uri(URI.create(ML_SERVER + "/predict"))
+                            .header("Content-Type", "application/json")
+                            .POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
+                            .timeout(java.time.Duration.ofSeconds(8)).build(),
+                    HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() == 200)
+                return mapper.readTree(resp.body()).path("predicted_aqi").asInt(-1);
+        } catch (Exception e) {
+            System.err.println("[Perf] " + modelName + " failed: " + e.getMessage());
+        }
+        return -1;
+    }
+
+    // ── MAE ───────────────────────────────────────────────────────────
+    private double perfComputeMae(List<Integer> actual, List<Integer> predicted) {
+        if (actual.isEmpty()) return 0;
+        double sum = 0; int valid = 0;
+        for (int i = 0; i < actual.size(); i++) {
+            if (i < predicted.size() && predicted.get(i) >= 0) {
+                sum += Math.abs(actual.get(i) - predicted.get(i)); valid++;
+            }
+        }
+        return valid > 0 ? sum / valid : 0;
+    }
+
+    // ── Sub-index helpers ─────────────────────────────────────────────
+    private double perfCalcSiPm25(double pm25) {
+        double[][] t = {{0,30,0,50},{30,60,51,100},{60,90,101,200},
+                {90,120,201,300},{120,250,301,400},{250,500,401,500}};
+        for (double[] r : t) if (pm25 <= r[1]) return ((r[3]-r[2])/(r[1]-r[0]))*(pm25-r[0])+r[2];
+        return 500;
+    }
+    private double perfCalcSiPm10(double pm10) {
+        double[][] t = {{0,50,0,50},{50,100,51,100},{100,250,101,200},
+                {250,350,201,300},{350,430,301,400},{430,600,401,500}};
+        for (double[] r : t) if (pm10 <= r[1]) return ((r[3]-r[2])/(r[1]-r[0]))*(pm10-r[0])+r[2];
+        return 500;
+    }
+
+    // ── Label / color helpers ─────────────────────────────────────────
+    private String perfFormatLabel(String dtTxt) {
+        try {
+            java.time.LocalDateTime ldt = java.time.LocalDateTime.parse(
+                    dtTxt.trim(),
+                    java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            return ldt.format(java.time.format.DateTimeFormatter.ofPattern("EEE ha"));
+        } catch (Exception e) { return dtTxt; }
+    }
+    private String perfAqiColor(int aqi) {
+        if      (aqi <= 50)  return "#16a34a";
+        else if (aqi <= 100) return "#ca8a04";
+        else if (aqi <= 150) return "#ea580c";
+        else if (aqi <= 200) return "#dc2626";
+        else if (aqi <= 300) return "#7c3aed";
+        else                 return "#991b1b";
+    }
+    private String perfAqiLevel(int aqi) {
+        if      (aqi <= 50)  return "Good";
+        else if (aqi <= 100) return "Moderate";
+        else if (aqi <= 150) return "Poor";
+        else if (aqi <= 200) return "Unhealthy";
+        else if (aqi <= 300) return "Severe";
+        else                 return "Hazardous";
     }
 
     // ── Back button helpers ───────────────────────────────────────
