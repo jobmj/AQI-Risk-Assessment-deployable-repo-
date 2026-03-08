@@ -17,7 +17,6 @@ matplotlib.use('Agg')          # headless — no display needed
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from flask import Flask, request, jsonify
-import requests as http_requests
 
 app = Flask(__name__)
 
@@ -295,20 +294,21 @@ def _fetch_real_history(lat, lon):
     Returns None if unavailable.
     """
     try:
-        resp = http_requests.get(
-            f"{SPRING_BASE}/aqi/history",
-            params={"lat": lat, "lon": lon},
-            timeout=10
-        )
-        if resp.status_code == 200:
-            data = resp.json()
+        import urllib.request
+        import json as _json
+        url = f"{SPRING_BASE}/aqi/history?lat={lat}&lon={lon}"
+        print(f"[HISTORY] Fetching: {url}", flush=True)
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            raw = resp.read().decode("utf-8")
+            data = _json.loads(raw)
             if isinstance(data, list) and len(data) > 0:
-                print(f"[HISTORY] Fetched {len(data)} real readings from Spring")
+                print(f"[HISTORY] Got {len(data)} real readings (lat={lat}, lon={lon})", flush=True)
                 return data
-        print(f"[HISTORY] Spring returned {resp.status_code}, falling back to synthetic")
-        return None
+            print(f"[HISTORY] Empty or invalid response: {raw[:200]}", flush=True)
+            return None
     except Exception as e:
-        print(f"[HISTORY] Could not reach Spring backend: {e} — using synthetic data")
+        print(f"[HISTORY] Failed (lat={lat}, lon={lon}): {e} — using synthetic", flush=True)
         return None
 
 
@@ -599,6 +599,8 @@ def metrics():
             return jsonify({"error": f"Unknown model: {model_name}"}), 400
 
         features = FEATURES[model_name]
+        print(f"[METRICS] Received payload keys: {list(data.keys())}", flush=True)
+        print(f"[METRICS] lat={data.get('lat','MISSING')} lon={data.get('lon','MISSING')}", flush=True)
         df = build_row(data, features)
         test_df, true_aqi, data_source = _make_test_data(model_name, df)
         preds = safe_predict(model_name, test_df).astype(float)

@@ -125,6 +125,8 @@ public class AqiService {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("aqi",         cpcbAqi);
         result.put("city",        cityName);
+        result.put("lat",         lat);
+        result.put("lon",         lon);
         result.put("pm25",        pm25);
         result.put("pm10",        pm10);
         result.put("no2",         no2);
