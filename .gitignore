@@ -2,10 +2,6 @@
 ml/data/raw/
 ml/data/processed/
 
-# Trained models
-ml/models/*.pkl
-ml/models/*.joblib
-
 # Python
 __pycache__/
 *.pyc
