@@ -25,8 +25,8 @@ if not os.path.exists(RF_MODEL_PATH):
 print("Loading models...")
 models = {
     'randomforest': joblib.load('ml/models/randomforest_model.pkl'),
-    'model1':       joblib.load('ml/models/xgboost_model.pkl'),
-    'model2':       joblib.load('ml/models/lightgbm_model.pkl'),
+    'xgboost':       joblib.load('ml/models/xgboost_model.pkl'),
+    'lightgbm':       joblib.load('ml/models/lightgbm_model.pkl'),
 }
 print("All models loaded ✓")
 
